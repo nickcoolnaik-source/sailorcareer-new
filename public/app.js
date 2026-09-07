@@ -208,8 +208,9 @@ function updateHeader(){
   });
   $('#logoutBtn')?.addEventListener('click',()=>{authStore.clear();updateHeader();toast('You are logged out.')});
 }
-$$('[data-open]').forEach(b=>b.addEventListener('click',()=>openAuth(b.dataset.open)));
 updateHeader();
+$$('[data-open]').forEach(b=>b.addEventListener('click',()=>openAuth(b.dataset.open)));
+
 
 $$('[data-plan]').forEach(b=>b.addEventListener('click',async()=>{
   const auth=authStore.get();
