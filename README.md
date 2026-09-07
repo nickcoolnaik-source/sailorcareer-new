@@ -1,0 +1,15 @@
+# SailorCareer 3.0
+
+New clean Vercel-ready maritime recruitment platform frontend + serverless API foundation.
+
+## Deploy
+- Vercel project type: Other
+- Root directory: `./`
+- Add environment variables from `.env.example`.
+- Run `sql/001_schema.sql` in the Supabase SQL editor before enabling production auth/data flows.
+- Do not commit real secrets.
+
+## Validation
+Run `npm run check` on Node 20+.
+
+This package intentionally separates the public UI from server-side API secrets. Live Supabase/Cashfree/Turnstile functionality requires the user's own production configuration and cannot be truthfully tested without those external accounts.
