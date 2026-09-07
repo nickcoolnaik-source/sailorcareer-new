@@ -1,1 +1,12 @@
-{"name":"sailorcareer-new","version":"3.0.0","private":true,"scripts":{"check":"node --check public/app.js && for f in api/*.js; do node --check \"$f\"; done","serve":"python3 -m http.server 4173 -d public"},"engines":{"node":">=20"}}
+{
+  "name": "sailorcareer-new",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "check": "node --check public/app.js && for f in api/*.js; do node --check \"$f\"; done",
+    "serve": "python3 -m http.server 4173 -d public"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}
