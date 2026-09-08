@@ -1,35 +1,35 @@
-SAILORCAREER SEAFARER PRO — ₹499/YEAR + CAREER TOOLKIT
+SAILORCAREER PRO — ₹499/YEAR — DEPLOYMENT PATCH
 
-Add to public/:
-- pro-tools.js
+IMPORTANT: This is an overlay patch for the existing working SailorCareer project. Do NOT replace the whole project with this package. Upload/copy these files into the existing repository at the shown paths.
+
+FILES
+- index.html
+- marketing-enhancements.css
+- marketing-enhancements.js
 - pro-tools.css
+- pro-tools.js
 - pro-plan.js
+- api/pro-tools.js
+- sql/004_pro_features.sql
 
-Load on dashboard.html after dashboard.js:
-<link rel="stylesheet" href="/pro-tools.css?v=1">
-<script src="/pro-tools.js?v=1"></script>
-<script src="/pro-plan.js?v=1"></script>
-
-Load on index.html before </body>:
-<script src="/pro-plan.js?v=1"></script>
-
-Add api/pro-tools.js to api/.
-
-Run sql/004_pro_features.sql once in Supabase SQL Editor.
-
-The Cashfree Seafarer Pro amount remains INR 499, but the product copy is now annual: ₹499/year. No amount change is required in api/cashfree-create-order.js; the billing-period/renewal logic should be kept annual when subscription renewal automation is added.
-
-Pro features:
-- Sea Service Calculator: vessel, rank, joining/leaving dates and total service calculation
-- Certificate Expiry Tracker with 60-day warning
-- 80% Complete Profile to Apply gate
-- Availability: Available Now / 30 Days / 60 Days / Currently Onboard
+PRO FEATURES
+- Sea Service Calculator
+- Certificate Expiry Tracker
+- Availability Status: Available Now / 30 Days / 60 Days / Currently Onboard
+- Complete Profile to Apply gate
 - Watchkeeping guidance
 - CoC guidance
 - DC/CDC guidance
 - Course Booking enquiry
 - Fresher Seafarer guidance
-- Seafarer career guidance
-- Service requests saved to Supabase service_requests table
+- Career guidance
+- Pro price: ₹499/year
 
-Existing authentication, Supabase, Cashfree, CV, applications and document vault are not replaced by this addon.
+DATABASE
+Run sql/004_pro_features.sql once in Supabase SQL Editor.
+
+DASHBOARD SCRIPT LOADING
+pro-tools.js and pro-tools.css must be loaded by dashboard.html after dashboard.js. pro-plan.js must be loaded by index.html.
+
+VALIDATION
+JavaScript syntax checks passed for all supplied JS files.
