@@ -56,6 +56,17 @@ module.exports=async function(req,res){
         rank:String(body.rank||'').trim()
       };
 
+      // Prevent repeated signup attempts for an email that already has a SailorCareer profile.
+      // This avoids unnecessarily triggering Supabase confirmation-email rate limits.
+      const existing=await sb(`/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id,role,is_active&limit=1`,{
+        headers:{apikey:secret,Authorization:`Bearer ${secret}`}
+      });
+      if(Array.isArray(existing)&&existing[0]){
+        const ep=existing[0];
+        if(ep.role!==role) throw new Error('This email is already registered for a different portal. Please use another email.');
+        throw new Error('This email is already registered. Please use Login instead of creating another account.');
+      }
+
       const signup=await authRequest(url,anon,'/auth/v1/signup',{
         email,password,
         data:metadata,

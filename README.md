@@ -16,3 +16,6 @@ This package intentionally separates the public UI from server-side API secrets.
 
 ## V12 document storage
 Run `sql/002_documents.sql` once in Supabase SQL Editor to enable the private `seafarer-documents` bucket and document metadata table. Resume upload is available to Free users from My Profile; certificates/documents require an active Seafarer Pro subscription.
+
+
+V17 stability update: signup now checks for an existing SailorCareer profile before calling Supabase signup, reducing duplicate confirmation-email requests and handling duplicate emails cleanly. Existing login/button handlers are unchanged.
