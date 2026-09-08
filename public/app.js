@@ -192,7 +192,7 @@ async function handleAuthSubmit(e){
     }else{
       const email=d.email||payload.email||'';
       const roleLabel=f.role==='employer'?'Employer':'Seafarer';
-      openModal(`<div class="kicker"><span></span> EMAIL VERIFICATION</div><h2>Verify your email to continue</h2><p class="form-note">Your ${roleLabel} account has been created successfully.</p><div class="dash-card" style="margin:16px 0;"><strong>Verification email sent to</strong><br><span>${email}</span></div><p>Please open your inbox and click the <strong>Verify Email</strong> link. After verification, return to SailorCareer and use <strong>${f.role==='employer'?'Employer Login':'Seafarer Login'}</strong>.</p><p class="form-note">If you do not see the email, check your Spam/Junk folder.</p><button class="btn primary full" type="button" onclick="closeModal()">OK, I will verify my email</button>`);
+      openModal(`<div class="kicker"><span></span> EMAIL VERIFICATION</div><h2>Verify your email to continue</h2><p class="form-note">Your ${roleLabel} account has been created successfully and your verification email has been sent.</p><div class="dash-card" style="margin:16px 0;"><strong>Verification email sent to</strong><br><span>${email}</span></div><p><strong>Next step:</strong> Open your inbox and click the <strong>Verify Email</strong> link. After verification, return to SailorCareer and use <strong>${f.role==='employer'?'Employer Login':'Seafarer Login'}</strong>.</p><p class="form-note">If you do not see the email, check your Spam/Junk folder.</p><button class="btn primary full" type="button" onclick="closeModal()">OK, I will verify my email</button>`);
     }
   }catch(err){
     toast(err.message);

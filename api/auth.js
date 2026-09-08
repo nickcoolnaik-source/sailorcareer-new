@@ -73,11 +73,17 @@ module.exports=async function(req,res){
         options:{email_redirect_to:`${process.env.SITE_URL||'https://www.sailorcareer.com'}/?auth=verified`}
       });
       const user=signup.user;
-      if(!user?.id) throw new Error('Account could not be created. Please try again.');
+      if(!user?.id){
+        // Supabase can return a successful response without a session when email confirmation is enabled.
+        // It should still include the user object; if it does not, do not pretend registration succeeded.
+        throw new Error('Account creation response was incomplete. Please try again.');
+      }
 
+      // The database trigger creates the base profile automatically. Upsert here only to
+      // enrich it with the submitted role/contact data, while keeping signup idempotent.
       await sb('/rest/v1/profiles?on_conflict=id',{
         method:'POST',
-        headers:{apikey:secret,Authorization:`Bearer ${secret}`,Prefer:'resolution=merge-duplicates,return=minimal'},
+        headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
         body:JSON.stringify({
           id:user.id,email,full_name:metadata.full_name,mobile:metadata.mobile,
           role,is_active:role==='seafarer'
@@ -87,7 +93,7 @@ module.exports=async function(req,res){
       if(role==='seafarer'){
         await sb('/rest/v1/seafarer_profiles?on_conflict=user_id',{
           method:'POST',
-          headers:{apikey:secret,Authorization:`Bearer ${secret}`,Prefer:'resolution=merge-duplicates,return=minimal'},
+          headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify({
             user_id:user.id,
             dob:body.dob||null,
@@ -98,7 +104,7 @@ module.exports=async function(req,res){
       }else{
         await sb('/rest/v1/companies?on_conflict=user_id',{
           method:'POST',
-          headers:{apikey:secret,Authorization:`Bearer ${secret}`,Prefer:'resolution=merge-duplicates,return=minimal'},
+          headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
           body:JSON.stringify({
             user_id:user.id,
             company_name:String(body.companyName||'').trim(),
