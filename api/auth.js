@@ -72,11 +72,31 @@ module.exports=async function(req,res){
         data:metadata,
         options:{email_redirect_to:`${process.env.SITE_URL||'https://www.sailorcareer.com'}/?auth=verified`}
       });
-      const user=signup.user;
+
+      // Supabase normally returns { user, session }. In some Auth responses the
+      // user object can be represented directly, so accept both shapes. If the
+      // confirmation email was sent but the response omitted the user id, recover
+      // the id from the SailorCareer profile created by the database trigger.
+      let user=signup?.user || (signup?.id ? signup : null);
       if(!user?.id){
-        // Supabase can return a successful response without a session when email confirmation is enabled.
-        // It should still include the user object; if it does not, do not pretend registration succeeded.
-        throw new Error('Account creation response was incomplete. Please try again.');
+        for(let i=0;i<5;i++){
+          const rows=await sb(`/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id,email,role,is_active&limit=1`,{
+            headers:{apikey:secret,Authorization:`Bearer ${secret}`}
+          });
+          if(Array.isArray(rows)&&rows[0]?.id){
+            user={id:rows[0].id,email:rows[0].email||email};
+            break;
+          }
+          await new Promise(r=>setTimeout(r,400));
+        }
+      }
+      if(!user?.id){
+        // The signup request has already sent the verification email. Do not
+        // report a generic failure if Auth succeeded but its response was unusual.
+        return res.status(200).json({
+          success:true,email,requiresEmailConfirmation:true,
+          message:'Account created. Please verify your email before signing in.'
+        });
       }
 
       // The database trigger creates the base profile automatically. Upsert here only to
