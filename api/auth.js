@@ -162,7 +162,7 @@ module.exports=async function(req,res){
       });
       const p=profile?.[0];
       if(!p||p.role!==expectedRole) throw new Error('This account is not registered for this portal.');
-      if(!p.is_active) throw new Error('Your account is pending verification or has been suspended.');
+      if(!p.is_active && expectedRole!=='employer') throw new Error('Your account is pending verification or has been suspended.');
 
       return res.status(200).json({
         success:true,

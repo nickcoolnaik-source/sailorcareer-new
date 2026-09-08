@@ -51,6 +51,7 @@ module.exports=async function(req,res){
       const company=(await table('companies','*',`&id=eq.${encodeURIComponent(id)}&limit=1`))[0];
       if(!company) throw Error('Company not found.');
       const approved=action==='verifyEmployer';
+      if(approved){const paid=(await table('subscriptions','id,plan,status',`&user_id=eq.${encodeURIComponent(company.user_id)}&plan=eq.employer_pro&status=eq.active&limit=1`))[0];if(!paid)throw Error('Employer must complete subscription payment before admin approval.');}
       await patch('companies',`id=eq.${encodeURIComponent(id)}`,{verified:approved,verified_at:approved?new Date().toISOString():null,rpsl_status:approved?'verified':'rejected'});
       if(company.user_id) await patch('profiles',`id=eq.${encodeURIComponent(company.user_id)}`,{is_active:approved});
       return res.json({success:true,verified:approved});
