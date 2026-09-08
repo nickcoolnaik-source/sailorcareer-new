@@ -42,8 +42,9 @@ module.exports=async function(req,res){
       const companies=await table('companies','*','&order=created_at.desc');
       const ids=companies.map(x=>x.user_id).filter(Boolean);
       const profiles=ids.length?await table('profiles','id,email,full_name,mobile,is_active,created_at',`&id=in.(${ids.join(',')})`):[];
-      const map=new Map(profiles.map(x=>[x.id,x]));
-      return res.json({success:true,employers:companies.map(c=>({...c,profile:map.get(c.user_id)||null}))});
+      const subs=ids.length?await table('subscriptions','user_id,plan,status,provider_event,created_at',`&user_id=in.(${ids.join(',')})&plan=eq.employer_pro&order=created_at.desc`):[];
+      const map=new Map(profiles.map(x=>[x.id,x])); const paid=new Set(subs.filter(x=>x.status==='active'||(x.status==='pending'&&/(SUCCESS|PAID)/i.test(String(x.provider_event||'')))).map(x=>x.user_id));
+      return res.json({success:true,employers:companies.map(c=>({...c,payment_received:paid.has(c.user_id),profile:map.get(c.user_id)||null}))});
     }
     if(action==='verifyEmployer'||action==='rejectEmployer'){
       const id=clean(req.body?.company_id);
@@ -51,14 +52,14 @@ module.exports=async function(req,res){
       const company=(await table('companies','*',`&id=eq.${encodeURIComponent(id)}&limit=1`))[0];
       if(!company) throw Error('Company not found.');
       const approved=action==='verifyEmployer';
-      if(approved){const paid=(await table('subscriptions','id,plan,status',`&user_id=eq.${encodeURIComponent(company.user_id)}&plan=eq.employer_pro&status=eq.active&limit=1`))[0];if(!paid)throw Error('Employer must complete subscription payment before admin approval.');}
+      if(approved){const paid=(await table('subscriptions','id,plan,status,provider_event',`&user_id=eq.${encodeURIComponent(company.user_id)}&plan=eq.employer_pro&status=eq.pending&order=created_at.desc&limit=1`))[0];if(!paid||!/(SUCCESS|PAID)/i.test(String(paid.provider_event||'')))throw Error('Employer must complete the ₹49,999 payment before admin approval.');await patch('subscriptions',`id=eq.${encodeURIComponent(paid.id)}`,{status:'active',started_at:new Date().toISOString(),updated_at:new Date().toISOString()});}
       await patch('companies',`id=eq.${encodeURIComponent(id)}`,{verified:approved,verified_at:approved?new Date().toISOString():null,rpsl_status:approved?'verified':'rejected'});
-      if(company.user_id) await patch('profiles',`id=eq.${encodeURIComponent(company.user_id)}`,{is_active:approved});
+      if(company.user_id){await patch('profiles',`id=eq.${encodeURIComponent(company.user_id)}`,{is_active:approved});if(!approved){const paid=(await table('subscriptions','id,plan,status',`&user_id=eq.${encodeURIComponent(company.user_id)}&plan=eq.employer_pro&status=in.(pending,active)&order=created_at.desc&limit=1`))[0];if(paid)await patch('subscriptions',`id=eq.${encodeURIComponent(paid.id)}`,{status:'suspended',updated_at:new Date().toISOString()});}}
       return res.json({success:true,verified:approved});
     }
     if(action==='suspendEmployer'||action==='activateEmployer'){
       const id=clean(req.body?.user_id); if(!id) throw Error('User id required.');
-      await patch('profiles',`id=eq.${encodeURIComponent(id)}`,{is_active:action==='activateEmployer'});
+      await patch('profiles',`id=eq.${encodeURIComponent(id)}`,{is_active:action==='activateEmployer'});if(action==='suspendEmployer'){const paid=(await table('subscriptions','id,status',`&user_id=eq.${encodeURIComponent(id)}&plan=eq.employer_pro&status=eq.active&order=created_at.desc&limit=1`))[0];if(paid)await patch('subscriptions',`id=eq.${encodeURIComponent(paid.id)}`,{status:'suspended',updated_at:new Date().toISOString()});}
       return res.json({success:true,is_active:action==='activateEmployer'});
     }
 
@@ -70,7 +71,7 @@ module.exports=async function(req,res){
     }
 
     if(action==='jobs'){
-      const jobs=await table('jobs','*','&order=created_at.desc');
+      const jobs=await table('jobs','*,rank:ranks(name),vessel_type:vessel_types(name),sector:sectors(name)','&order=created_at.desc');
       return res.json({success:true,jobs});
     }
     if(action==='jobStatus'){
