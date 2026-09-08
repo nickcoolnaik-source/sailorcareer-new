@@ -154,6 +154,10 @@ module.exports=async function(req,res){
 
     return res.status(400).json({error:'Invalid authentication action.'});
   }catch(e){
-    return res.status(400).json({error:e.message||'Authentication failed.'});
+    const raw=String(e.message||'');
+    if(/rate limit exceeded|rate_limit|too many requests/i.test(raw)){
+      return res.status(429).json({error:'Email sending limit reached. Please wait a few minutes before trying again.'});
+    }
+    return res.status(400).json({error:raw||'Authentication failed.'});
   }
 };

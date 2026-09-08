@@ -140,7 +140,7 @@ function authModalHtml(key){
   const login=key.includes('Login');
   return `<div class="kicker"><span></span> SAILORCAREER</div><h2>${f.title}</h2><form id="authForm" class="form-grid" data-auth-key="${key}">${f.fields}<div class="full" id="turnstileWidget"></div><button class="btn primary full" type="submit">${f.role==='employer'&&!login?'Create employer account':login?'Sign in':'Create account'}</button>${login?'<button type="button" class="btn outline full" id="forgotPassword">Forgot password?</button>':''}</form><p class="form-note">Security verification is required before authentication. Email confirmation follows your Supabase Auth settings.</p>`;
 }
-async function openAuth(key){
+window.openAuth=async function openAuth(key){
   currentAuthForm=key;
   openModal(authModalHtml(key));
   const ok=await renderTurnstile();
