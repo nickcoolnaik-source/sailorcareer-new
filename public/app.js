@@ -217,9 +217,11 @@ function updateHeader(){
   const auth=authStore.get();
   $$('.head-actions').forEach(x=>{
     if(!x.dataset.original)x.dataset.original=x.innerHTML;
-    x.innerHTML=auth?`<button class="btn ghost" id="dashboardBtn">Hi, ${auth.full_name||auth.email}</button><button class="btn primary" id="logoutBtn">Logout</button>`:x.dataset.original;
+    const destination = auth?.role === 'employer' ? '/employer' : auth?.role === 'admin' ? '/admin' : '/dashboard';
+    const label = auth?.role === 'employer' ? 'Employer Dashboard' : auth?.role === 'admin' ? 'Admin Portal' : 'Dashboard';
+    x.innerHTML=auth?`<button class="btn ghost" id="dashboardBtn" title="Open ${label}">${label}</button><button class="btn primary" id="logoutBtn">Logout</button>`:x.dataset.original;
+    $('#dashboardBtn')?.addEventListener('click',()=>{location.href=destination});
   });
-  $('#dashboardBtn')?.addEventListener('click',()=>{location.href='/dashboard'});
   $('#logoutBtn')?.addEventListener('click',()=>{authStore.clear();updateHeader();toast('You are logged out.')});
 }
 document.addEventListener('click',e=>{
