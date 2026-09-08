@@ -204,13 +204,13 @@ function updateHeader(){
   const auth=authStore.get();
   $$('.head-actions').forEach(x=>{
     if(!x.dataset.original)x.dataset.original=x.innerHTML;
-    x.innerHTML=auth?`<span class="btn ghost">Hi, ${auth.full_name||auth.email}</span><button class="btn primary" id="logoutBtn">Logout</button>`:x.dataset.original;
+    x.innerHTML=auth?`<button class="btn ghost" id="dashboardBtn">Hi, ${auth.full_name||auth.email}</button><button class="btn primary" id="logoutBtn">Logout</button>`:x.dataset.original;
   });
+  $('#dashboardBtn')?.addEventListener('click',()=>{location.href='/dashboard'});
   $('#logoutBtn')?.addEventListener('click',()=>{authStore.clear();updateHeader();toast('You are logged out.')});
 }
-updateHeader();
 $$('[data-open]').forEach(b=>b.addEventListener('click',()=>openAuth(b.dataset.open)));
-
+updateHeader();
 
 $$('[data-plan]').forEach(b=>b.addEventListener('click',async()=>{
   const auth=authStore.get();
