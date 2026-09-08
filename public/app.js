@@ -209,8 +209,8 @@ function updateHeader(){
   $('#dashboardBtn')?.addEventListener('click',()=>{location.href='/dashboard'});
   $('#logoutBtn')?.addEventListener('click',()=>{authStore.clear();updateHeader();toast('You are logged out.')});
 }
-updateHeader();
 $$('[data-open]').forEach(b=>b.addEventListener('click',()=>openAuth(b.dataset.open)));
+updateHeader();
 
 $$('[data-plan]').forEach(b=>b.addEventListener('click',async()=>{
   const auth=authStore.get();
