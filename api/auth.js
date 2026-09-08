@@ -151,7 +151,7 @@ module.exports=async function(req,res){
     if(body.action==='login'){
       const email=String(body.email||'').trim().toLowerCase();
       const password=String(body.password||'');
-      const expectedRole=body.role==='employer'?'employer':'seafarer';
+      const expectedRole=body.role==='employer'?'employer':body.role==='admin'?'admin':'seafarer';
       if(!email||!password) throw new Error('Enter email and password.');
 
       const session=await authRequest(url,anon,'/auth/v1/token?grant_type=password',{email,password});

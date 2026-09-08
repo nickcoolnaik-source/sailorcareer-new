@@ -10,6 +10,10 @@
       "dest": "/dashboard.html"
     },
     {
+      "src": "/admin/?",
+      "dest": "/admin.html"
+    },
+    {
       "src": "/employer/?",
       "dest": "/employer.html"
     },

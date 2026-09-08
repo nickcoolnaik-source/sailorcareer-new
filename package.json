@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "private": true,
   "scripts": {
-    "check": "node --check public/app.js && for f in api/*.js; do node --check \"$f\"; done",
+    "check": "node --check public/app.js && node --check public/admin.js && node --check public/dashboard.js && node --check public/employer.js && for f in api/*.js; do node --check \"$f\"; done",
     "serve": "python3 -m http.server 4173 -d public"
   },
   "engines": {

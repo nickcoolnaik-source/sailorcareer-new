@@ -1,0 +1,10 @@
+-- Admin access helper.
+-- Run this once in Supabase SQL Editor AFTER the admin email has been registered
+-- through the normal SailorCareer auth flow and email verification is complete.
+-- Replace the email below with the real admin account email.
+--
+-- update public.profiles
+-- set role='admin', is_active=true, updated_at=now()
+-- where lower(email)=lower('admin@sailorcareer.com');
+--
+-- The Admin Portal is available at /admin after deployment.
