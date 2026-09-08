@@ -9,7 +9,7 @@ function completion(p,s){const vals=[p.full_name,p.mobile,s?.dob,s?.nationality,
 function setForm(p,s){$('#full_name').value=p?.full_name||'';$('#email').value=p?.email||'';$('#mobile').value=p?.mobile||'';$('#dob').value=s?.dob||'';$('#nationality').value=s?.nationality||'';$('#total_sea_months').value=s?.total_sea_months||0;$('#rank_experience_months').value=s?.rank_experience_months||0;$('#joining_availability').value=s?.joining_availability||'';$('#professional_summary').value=s?.professional_summary||'';$('#preferred_vessels').value=split(s?.preferred_vessels);$('#preferred_sectors').value=split(s?.preferred_sectors);$('#preferred_locations').value=split(s?.preferred_locations);$('#skills').value=split(s?.skills);$('#certificates').value=split(s?.certificates);$('#visibility').value=s?.visibility||'employer_limited';$('#privacyValue').textContent=$('#visibility').selectedOptions[0].textContent}
 let isPro=false;
 function setProUI(){
- $('#planTag').textContent=isPro?'PRO':'FREE'; $('#planName').textContent=isPro?'Seafarer Pro':'Seafarer Free'; $('#planStatus').textContent=isPro?'Active • ₹499/month':'Active account';
+ $('#planTag').textContent=isPro?'PRO':'FREE'; $('#planName').textContent=isPro?'Seafarer Pro':'Seafarer Free'; $('#planStatus').textContent=isPro?'Active • ₹499/year':'Active account';
  $('#upgradePro').style.display=isPro?'none':'';
  ['cv','applications','alerts','privacy','documents'].forEach(k=>{const el=$('#'+k+'Lock');if(el)el.style.display=isPro?'none':''});
  $('#cvContent').style.display=isPro?'':'none';

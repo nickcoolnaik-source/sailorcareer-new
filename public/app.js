@@ -115,7 +115,7 @@ window.applyJob=async id=>{
     const sd=await sr.json();
     if(!sr.ok)throw Error(sd.error||'Unable to verify subscription');
     if(!sd.isPro){
-      openModal(`<div class="kicker"><span></span> SEAFARER PRO</div><h2>Apply with Seafarer Pro</h2><p>One-click applications and application tracking are included with Seafarer Pro.</p><div class="dash-grid"><div class="dash-card">Plan<strong>₹499/month</strong></div><div class="dash-card">Tracking<strong>8 application statuses</strong></div></div><button class="btn gold big" id="applyUpgrade">Upgrade to Pro — ₹499/month</button>`);
+      openModal(`<div class="kicker"><span></span> SEAFARER PRO</div><h2>Apply with Seafarer Pro</h2><p>One-click applications and application tracking are included with Seafarer Pro.</p><div class="dash-grid"><div class="dash-card">Plan<strong>₹499/year</strong></div><div class="dash-card">Tracking<strong>8 application statuses</strong></div></div><button class="btn gold big" id="applyUpgrade">Upgrade to Pro — ₹499/year</button>`);
       $('#applyUpgrade').onclick=async()=>{try{const r=await fetch('/api/cashfree-create-order',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify({plan:'seafarer_pro'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Payment setup unavailable');if(window.Cashfree&&d.payment_session_id)Cashfree({mode:d.mode==='production'?'production':'sandbox'}).checkout({paymentSessionId:d.payment_session_id,redirectTarget:'_self'});else toast('Payment session created.');}catch(e){toast(e.message)}};
       return;
     }
