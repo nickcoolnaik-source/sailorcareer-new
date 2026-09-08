@@ -148,6 +148,8 @@ async function openAuth(key){
   $('#authForm').onsubmit=handleAuthSubmit;
   $('#forgotPassword')?.addEventListener('click',handleRecovery);
 }
+window.openAuth=openAuth;
+
 async function handleAuthSubmit(e){
   e.preventDefault();
   const key=e.currentTarget.dataset.authKey;
@@ -219,7 +221,10 @@ function updateHeader(){
   $('#dashboardBtn')?.addEventListener('click',()=>{location.href='/dashboard'});
   $('#logoutBtn')?.addEventListener('click',()=>{authStore.clear();updateHeader();toast('You are logged out.')});
 }
-$$('[data-open]').forEach(b=>b.addEventListener('click',()=>openAuth(b.dataset.open)));
+document.addEventListener('click',e=>{
+  const trigger=e.target.closest?.('[data-open]');
+  if(trigger){e.preventDefault();openAuth(trigger.dataset.open)}
+});
 updateHeader();
 
 $$('[data-plan]').forEach(b=>b.addEventListener('click',async()=>{
