@@ -6,6 +6,9 @@ module.exports=async function(req,res){
   const user=await authUser(token), id=encodeURIComponent(user.id);
   const p=(await sb(`/rest/v1/profiles?id=eq.${id}&select=id,email,full_name,mobile,role,is_active`))?.[0];
   if(!p||p.role!=='seafarer'||!p.is_active)return res.status(403).json({error:'Seafarer access required'});
+  const subs=await sb(`/rest/v1/subscriptions?user_id=eq.${id}&plan=eq.seafarer_pro&status=eq.active&select=id,status,amount,renews_at&order=created_at.desc&limit=1`);
+  const isPro=Array.isArray(subs)&&subs.length>0;
+  if(!isPro)return res.status(403).json({error:'Seafarer Pro subscription required for application tracking.'});
   if(req.method==='GET'){
    const rows=await sb(`/rest/v1/applications?seafarer_id=eq.${id}&select=id,job_id,status,note,created_at,updated_at&order=created_at.desc`);
    return res.json({applications:rows||[]});

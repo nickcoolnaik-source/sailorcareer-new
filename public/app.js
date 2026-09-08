@@ -101,7 +101,7 @@ window.viewJob=id=>{
   const j=state.jobs.find(x=>x.id===id);
   openModal(`<div class="kicker"><span></span> VERIFIED VACANCY</div><h2>${j.rank}</h2><p><b>${j.company}</b> • ${j.location}</p><div class="dash-grid"><div class="dash-card">Vessel<strong>${j.vessel}</strong></div><div class="dash-card">Contract<strong>${j.contract}</strong></div><div class="dash-card">Salary<strong>${j.salary}</strong></div></div><h3>Requirements</h3><p>${j.requirements}</p><button class="btn primary big" onclick="applyJob('${j.id}')">Apply Now</button>`);
 };
-window.applyJob=id=>{
+window.applyJob=async id=>{
   const j=state.jobs.find(x=>x.id===id);
   const auth=authStore.get();
   if(!auth){
@@ -110,13 +110,23 @@ window.applyJob=id=>{
     return;
   }
   if(auth.role!=='seafarer'){toast('Only seafarer accounts can apply for jobs.');return}
-  openModal(`<div class="kicker"><span></span> APPLICATION</div><h2>Apply for ${j.rank}</h2><p>${j.company} • ${j.location}</p><div class="form-grid"><input id="applyName" placeholder="Full name" value="${auth.full_name||''}" required><input id="applyEmail" type="email" placeholder="Email" value="${auth.email||''}" required><input id="applyPhone" placeholder="Mobile" required><select id="applyMode"><option>Seafarer Free</option><option>Seafarer Pro</option></select><textarea id="applyNote" class="full" placeholder="Short note (optional)"></textarea><button class="btn primary full" onclick="submitApplication('${j.id}')">Submit application</button></div><p class="form-note">Application submission is now protected behind Seafarer authentication. Full application workflow will be connected in the next phase.</p>`);
+  try{
+    const sr=await fetch('/api/subscription-status',{headers:{Authorization:`Bearer ${auth.access_token}`},cache:'no-store'});
+    const sd=await sr.json();
+    if(!sr.ok)throw Error(sd.error||'Unable to verify subscription');
+    if(!sd.isPro){
+      openModal(`<div class="kicker"><span></span> SEAFARER PRO</div><h2>Apply with Seafarer Pro</h2><p>One-click applications and application tracking are included with Seafarer Pro.</p><div class="dash-grid"><div class="dash-card">Plan<strong>₹499/month</strong></div><div class="dash-card">Tracking<strong>8 application statuses</strong></div></div><button class="btn gold big" id="applyUpgrade">Upgrade to Pro — ₹499/month</button>`);
+      $('#applyUpgrade').onclick=async()=>{try{const r=await fetch('/api/cashfree-create-order',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify({plan:'seafarer_pro'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Payment setup unavailable');if(window.Cashfree&&d.payment_session_id)Cashfree({mode:d.mode==='production'?'production':'sandbox'}).checkout({paymentSessionId:d.payment_session_id,redirectTarget:'_self'});else toast('Payment session created.');}catch(e){toast(e.message)}};
+      return;
+    }
+  }catch(e){toast(e.message);return}
+  openModal(`<div class="kicker"><span></span> APPLICATION</div><h2>Apply for ${j.rank}</h2><p>${j.company} • ${j.location}</p><div class="form-grid"><input id="applyName" placeholder="Full name" value="${auth.full_name||''}" required><input id="applyEmail" type="email" placeholder="Email" value="${auth.email||''}" required><input id="applyPhone" placeholder="Mobile" required><textarea id="applyNote" class="full" placeholder="Short note (optional)"></textarea><button class="btn primary full" onclick="submitApplication('${j.id}')">Submit application</button></div><p class="form-note">Your Seafarer Pro application will be tracked from your dashboard.</p>`);
 };
-window.submitApplication=id=>{
+window.submitApplication=async id=>{
   const n=$('#applyName')?.value.trim(),e=$('#applyEmail')?.value.trim(),p=$('#applyPhone')?.value.trim();
   if(!n||!e||!p){toast('Please complete name, email and mobile.');return}
-  toast('Application workflow is being connected next. Your account is ready.');closeModal();
-};
+  const a=authStore.get();
+  try{const r=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${a.access_token}`},body:JSON.stringify({job_id:id,note:$('#applyNote')?.value||''})});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to submit application');toast('Application submitted successfully.');closeModal()}catch(err){toast(err.message)}};
 
 const forms={
   seafarerLogin:{title:'Seafarer Login',role:'seafarer',fields:`<input class="full" id="authEmail" type="email" autocomplete="email" placeholder="Email" required><input class="full" id="authPassword" type="password" autocomplete="current-password" placeholder="Password" required>`},
