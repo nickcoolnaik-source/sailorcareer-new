@@ -66,8 +66,11 @@ module.exports=async function(req,res){
     if(action==='seafarers'){
       const profiles=await table('profiles','id,email,full_name,mobile,is_active,created_at','&role=eq.seafarer&order=created_at.desc');
       const ids=profiles.map(x=>x.id); const seaf=ids.length?await table('seafarer_profiles','user_id,nationality,total_sea_months,rank_experience_months,professional_summary,visibility,resume_url',`&user_id=in.(${ids.join(',')})`):[];
+      const subs=ids.length?await table('subscriptions','user_id,plan,status,amount,currency,provider_order_id,provider_event,started_at,created_at',`&user_id=in.(${ids.join(',')})&plan=eq.seafarer_pro&order=created_at.desc`):[];
       const map=new Map(seaf.map(x=>[x.user_id,x]));
-      return res.json({success:true,seafarers:profiles.map(p=>({...p,seafarer:map.get(p.id)||null}))});
+      const subMap=new Map();
+      for(const x of subs){if(!subMap.has(x.user_id))subMap.set(x.user_id,x);}
+      return res.json({success:true,seafarers:profiles.map(p=>({...p,seafarer:map.get(p.id)||null,subscription:subMap.get(p.id)||null}))});
     }
 
     if(action==='jobs'){
@@ -96,7 +99,28 @@ module.exports=async function(req,res){
 
     if(action==='subscriptions'){
       const subs=await table('subscriptions','*','&order=created_at.desc');
-      return res.json({success:true,subscriptions:subs});
+      const ids=[...new Set(subs.map(x=>x.user_id).filter(Boolean))];
+      const profiles=ids.length?await table('profiles','id,email,full_name,mobile,is_active,created_at',`&id=in.(${ids.join(',')})`):[];
+      const pMap=new Map(profiles.map(x=>[x.id,x]));
+      return res.json({success:true,subscriptions:subs.map(x=>({...x,profile:pMap.get(x.user_id)||null}))});
+    }
+    if(action==='reconcileSubscription'){
+      const id=clean(req.body?.subscription_id);
+      if(!id) throw Error('Subscription id required.');
+      const sub=(await table('subscriptions','id,user_id,plan,status,amount,currency,provider_order_id,provider_event,started_at,renews_at,created_at',`&id=eq.${encodeURIComponent(id)}&limit=1`))[0];
+      if(!sub) throw Error('Subscription not found.');
+      if(sub.plan!=='seafarer_pro') throw Error('Only Seafarer Pro payments can be verified here.');
+      if(!sub.provider_order_id) throw Error('Cashfree order ID is missing.');
+      const base=process.env.CASHFREE_ENV==='PRODUCTION'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';
+      const headers={'Content-Type':'application/json','x-api-version':process.env.CASHFREE_API_VERSION||'2025-01-01','x-client-id':process.env.CASHFREE_APP_ID,'x-client-secret':process.env.CASHFREE_SECRET_KEY};
+      const r=await fetch(`${base}/orders/${encodeURIComponent(sub.provider_order_id)}/payments`,{headers});
+      const payments=await r.json().catch(()=>[]);
+      if(!r.ok) throw Error(`Cashfree verification failed (${r.status}).`);
+      const paid=Array.isArray(payments)&&payments.some(x=>String(x.payment_status||x.status||'').toUpperCase()==='SUCCESS');
+      if(!paid) return res.json({success:true,verified:false,status:sub.status,payments:Array.isArray(payments)?payments:[]});
+      const now=new Date().toISOString();
+      const updated=(await patch('subscriptions',`id=eq.${encodeURIComponent(id)}`,{status:'active',started_at:sub.started_at||now,updated_at:now,provider_event:'PAYMENT_SUCCESS_ADMIN_RECONCILED'}))[0];
+      return res.json({success:true,verified:true,subscription:updated,payments});
     }
     if(action==='subscriptionStatus'){
       const id=clean(req.body?.subscription_id); const status=clean(req.body?.status);
