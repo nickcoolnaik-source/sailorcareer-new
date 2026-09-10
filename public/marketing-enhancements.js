@@ -1,7 +1,5 @@
 
 (function(){
-  if(window.__SC_MARKETING_ENHANCEMENTS_LOADED)return;
-  window.__SC_MARKETING_ENHANCEMENTS_LOADED=true;
   const $=s=>document.querySelector(s);
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -68,35 +66,28 @@
     jobs.insertAdjacentElement('beforebegin',sec);
   }
 
-  // Lightweight public vacancy feed.
-  // Keep only 5 records in the DOM at a time to prevent the homepage from freezing.
+  // Generate a broad public vacancy feed with all major ranks and no company names.
   const ranks=[
-    'Master/Captain','Chief Officer','2nd Officer','3rd Officer','Deck Cadet',
-    'Chief Engineer','2nd Engineer','3rd Engineer','4th Engineer','Engine Cadet',
-    'ETO','Electrician','AB','OS','Bosun'
+    'Master/Captain','Chief Officer','2nd Officer','3rd Officer','Deck Cadet','Bosun','AB','OS','Pumpman',
+    'Chief Engineer','2nd Engineer','3rd Engineer','4th Engineer','Engine Cadet','Motorman/Oiler','Fitter',
+    'ETO','ETR','Electrician','Reefer Engineer','Chief Cook','2nd Cook','Steward','Messman','Chief Steward',
+    'DPO/DP Operator','Rig Manager','Toolpusher','Driller','Assistant Driller','Derrickman','Roustabout',
+    'Crane Operator','Barge Engineer','Fishing Master','Skipper','Deckhand','Marine Surveyor','Marine Superintendent',
+    'Technical Superintendent','HSQE Officer'
   ];
-  const vessels=[
-    'Container Vessel','Bulk Carrier','Oil Tanker','Product Tanker','Chemical Tanker',
-    'LNG Carrier','LPG Carrier','Ro-Ro / Car Carrier','General Cargo','Offshore / DP'
-  ];
-  const sectors=[
-    'Merchant Shipping','Offshore / Oil & Gas','Cruise & Passenger','Yachting','Marine Services'
-  ];
-  const locations=['Singapore','Dubai','Mumbai','Chennai','Kochi','Colombo','Manila','Rotterdam'];
+  const vessels=['Container Vessel','Bulk Carrier','Oil Tanker','Product Tanker','Chemical Tanker','LNG Carrier','LPG Carrier','Ro-Ro / Car Carrier','General Cargo','Offshore / DP','PSV','AHTS','Drillship','Jack-up Rig','FPSO / FSO','Cruise / Passenger','Ferry','Yacht','Fishing Vessel','Research Vessel','Dredger','Tug / Workboat','Cable Layer','Wind Farm Support'];
+  const sectors=['Merchant Shipping','Offshore / Oil & Gas','Cruise & Passenger','Yachting','Fishing','Research','Marine Services','Ship Management'];
+  const locations=['Singapore','Dubai','Abu Dhabi','Doha','Mumbai','Chennai','Kochi','Colombo','Manila','Rotterdam','Limassol','Jeddah','Hong Kong','Athens','London'];
   const contracts=['3 months','4 months','5 months','6 months','8 months','9 months'];
-  const salaries=['USD 700','USD 1,200','USD 2,100','USD 3,400','USD 4,900','USD 6,200'];
+  const salaries=['USD 700','USD 1,200','USD 2,100','USD 3,400','USD 4,900','USD 6,200','USD 7,500','USD 8,900','USD 10,500'];
+  const vacancies=Array.from({length:100},(_,i)=>{
+    const rank=ranks[i%ranks.length], vessel=vessels[(i*3)%vessels.length], sector=sectors[(i*5)%sectors.length];
+    return {id:'public-'+(i+1),rank,vessel,sector,location:locations[(i*7)%locations.length],contract:contracts[i%contracts.length],salary:salaries[(i*2)%salaries.length],requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'};
+  });
 
-  const vacancies=Array.from({length:15},(_,i)=>({
-    id:'public-'+(i+1),
-    rank:ranks[i%ranks.length],
-    vessel:vessels[(i*3)%vessels.length],
-    sector:sectors[(i*2)%sectors.length],
-    location:locations[(i*3)%locations.length],
-    contract:contracts[i%contracts.length],
-    salary:salaries[(i*2)%salaries.length],
-    requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'
-  }));
-
+  // Render only a small number of public vacancies at first.
+  // The full 100-item dataset stays available, but the homepage initially
+  // creates only 5 vacancy cards to keep the page light and responsive.
   const PUBLIC_PAGE_SIZE=5;
   let currentPublicList=vacancies;
   let visiblePublicCount=PUBLIC_PAGE_SIZE;
@@ -105,57 +96,59 @@
     const grid=$('#jobGrid'), count=$('#jobCount');
     if(!grid)return;
 
-    if(reset)visiblePublicCount=PUBLIC_PAGE_SIZE;
     currentPublicList=list;
+    if(reset) visiblePublicCount=PUBLIC_PAGE_SIZE;
 
     const visibleList=list.slice(0,visiblePublicCount);
-    if(count)count.textContent=list.length+' live vacancies';
+    count.textContent=`Showing ${visibleList.length} of ${list.length} vacancies`;
 
     grid.innerHTML=visibleList.map(j=>`<article class="job public-job">
       <div class="job-top"><span class="count">${esc(j.sector)}</span><span>✓ Verified access</span></div>
       <h3>${esc(j.rank)}</h3>
       <div class="company public-no-company">Employer details available after account sign-in</div>
-      <div class="job-meta">
-        <div>Vessel<b>${esc(j.vessel)}</b></div>
-        <div>Location<b>${esc(j.location)}</b></div>
-        <div>Contract<b>${esc(j.contract)}</b></div>
-        <div>Salary<b>${esc(j.salary)}</b></div>
-      </div>
+      <div class="job-meta"><div>Vessel<b>${esc(j.vessel)}</b></div><div>Location<b>${esc(j.location)}</b></div><div>Contract<b>${esc(j.contract)}</b></div><div>Salary<b>${esc(j.salary)}</b></div></div>
       <p class="requirements">${esc(j.requirements)}</p>
-      <div class="job-actions">
-        <button class="btn outline public-view" data-job="${esc(j.id)}">View Details</button>
-        <button class="btn primary public-apply" data-job="${esc(j.id)}">Apply Now</button>
-      </div>
+      <div class="job-actions"><button class="btn outline public-view" data-job="${esc(j.id)}">View Details</button><button class="btn primary public-apply" data-job="${esc(j.id)}">Apply Now</button></div>
     </article>`).join('');
 
-    const oldMore=document.querySelector('#publicVacancyMore');
-    if(oldMore)oldMore.remove();
+    const oldMore=document.querySelector('#publicViewMore');
+    if(oldMore) oldMore.remove();
 
-    if(list.length>visiblePublicCount){
-      const moreWrap=document.createElement('div');
-      moreWrap.id='publicVacancyMore';
-      moreWrap.style.cssText='text-align:center;margin:24px 0;';
-      moreWrap.innerHTML='<button type="button" class="btn outline" id="publicVacancyMoreBtn">View More Vacancies →</button>';
-      grid.insertAdjacentElement('afterend',moreWrap);
-
-      moreWrap.querySelector('#publicVacancyMoreBtn')?.addEventListener('click',()=>{
-        visiblePublicCount=Math.min(visiblePublicCount+PUBLIC_PAGE_SIZE,list.length);
-        renderPublic(currentPublicList,false);
-      });
+    if(visiblePublicCount < list.length){
+      const more=document.createElement('div');
+      more.id='publicViewMore';
+      more.className='public-view-more';
+      more.style.cssText='display:flex;justify-content:center;align-items:center;margin:24px 0 8px;';
+      more.innerHTML='<button type="button" class="btn outline" id="publicViewMoreBtn">View More Vacancies →</button>';
+      grid.insertAdjacentElement('afterend',more);
     }
   }
 
   renderPublic(vacancies);
+
+  document.addEventListener('click',e=>{
+    const moreBtn=e.target.closest('#publicViewMoreBtn');
+    if(!moreBtn)return;
+    visiblePublicCount+=PUBLIC_PAGE_SIZE;
+    renderPublic(currentPublicList,false);
+  });
 
   const form=$('#jobSearch');
   if(form){
     form.addEventListener('submit',function(){
       setTimeout(()=>{
         const r=$('#rankFilter')?.value||'', v=$('#vesselFilter')?.value||'', s=$('#sectorFilter')?.value||'', k=($('#keywordFilter')?.value||'').toLowerCase();
-        renderPublic(vacancies.filter(j=>(!r||j.rank===r)&&(!v||j.vessel===v)&&(!s||j.sector===s)&&(!k||[j.rank,j.vessel,j.sector,j.location,j.contract].join(' ').toLowerCase().includes(k))));
+        const filtered=vacancies.filter(j=>
+          (!r||j.rank===r)&&
+          (!v||j.vessel===v)&&
+          (!s||j.sector===s)&&
+          (!k||[j.rank,j.vessel,j.sector,j.location,j.contract].join(' ').toLowerCase().includes(k))
+        );
+        renderPublic(filtered,true);
       },0);
     });
   }
+
   document.addEventListener('click',e=>{
     const b=e.target.closest('.public-apply,.public-view');
     if(!b)return;
