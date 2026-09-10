@@ -1,5 +1,7 @@
 
 (function(){
+  if(window.__SC_MARKETING_ENHANCEMENTS_LOADED)return;
+  window.__SC_MARKETING_ENHANCEMENTS_LOADED=true;
   const $=s=>document.querySelector(s);
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -66,26 +68,35 @@
     jobs.insertAdjacentElement('beforebegin',sec);
   }
 
-  // Generate a broad public vacancy feed with all major ranks and no company names.
+  // Lightweight public vacancy feed.
+  // Keep only 5 records in the DOM at a time to prevent the homepage from freezing.
   const ranks=[
-    'Master/Captain','Chief Officer','2nd Officer','3rd Officer','Deck Cadet','Bosun','AB','OS','Pumpman',
-    'Chief Engineer','2nd Engineer','3rd Engineer','4th Engineer','Engine Cadet','Motorman/Oiler','Fitter',
-    'ETO','ETR','Electrician','Reefer Engineer','Chief Cook','2nd Cook','Steward','Messman','Chief Steward',
-    'DPO/DP Operator','Rig Manager','Toolpusher','Driller','Assistant Driller','Derrickman','Roustabout',
-    'Crane Operator','Barge Engineer','Fishing Master','Skipper','Deckhand','Marine Surveyor','Marine Superintendent',
-    'Technical Superintendent','HSQE Officer'
+    'Master/Captain','Chief Officer','2nd Officer','3rd Officer','Deck Cadet',
+    'Chief Engineer','2nd Engineer','3rd Engineer','4th Engineer','Engine Cadet',
+    'ETO','Electrician','AB','OS','Bosun'
   ];
-  const vessels=['Container Vessel','Bulk Carrier','Oil Tanker','Product Tanker','Chemical Tanker','LNG Carrier','LPG Carrier','Ro-Ro / Car Carrier','General Cargo','Offshore / DP','PSV','AHTS','Drillship','Jack-up Rig','FPSO / FSO','Cruise / Passenger','Ferry','Yacht','Fishing Vessel','Research Vessel','Dredger','Tug / Workboat','Cable Layer','Wind Farm Support'];
-  const sectors=['Merchant Shipping','Offshore / Oil & Gas','Cruise & Passenger','Yachting','Fishing','Research','Marine Services','Ship Management'];
-  const locations=['Singapore','Dubai','Abu Dhabi','Doha','Mumbai','Chennai','Kochi','Colombo','Manila','Rotterdam','Limassol','Jeddah','Hong Kong','Athens','London'];
+  const vessels=[
+    'Container Vessel','Bulk Carrier','Oil Tanker','Product Tanker','Chemical Tanker',
+    'LNG Carrier','LPG Carrier','Ro-Ro / Car Carrier','General Cargo','Offshore / DP'
+  ];
+  const sectors=[
+    'Merchant Shipping','Offshore / Oil & Gas','Cruise & Passenger','Yachting','Marine Services'
+  ];
+  const locations=['Singapore','Dubai','Mumbai','Chennai','Kochi','Colombo','Manila','Rotterdam'];
   const contracts=['3 months','4 months','5 months','6 months','8 months','9 months'];
-  const salaries=['USD 700','USD 1,200','USD 2,100','USD 3,400','USD 4,900','USD 6,200','USD 7,500','USD 8,900','USD 10,500'];
-  const vacancies=Array.from({length:100},(_,i)=>{
-    const rank=ranks[i%ranks.length], vessel=vessels[(i*3)%vessels.length], sector=sectors[(i*5)%sectors.length];
-    return {id:'public-'+(i+1),rank,vessel,sector,location:locations[(i*7)%locations.length],contract:contracts[i%contracts.length],salary:salaries[(i*2)%salaries.length],requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'};
-  });
+  const salaries=['USD 700','USD 1,200','USD 2,100','USD 3,400','USD 4,900','USD 6,200'];
 
-  // Render public vacancies in small batches so the homepage stays responsive.
+  const vacancies=Array.from({length:15},(_,i)=>({
+    id:'public-'+(i+1),
+    rank:ranks[i%ranks.length],
+    vessel:vessels[(i*3)%vessels.length],
+    sector:sectors[(i*2)%sectors.length],
+    location:locations[(i*3)%locations.length],
+    contract:contracts[i%contracts.length],
+    salary:salaries[(i*2)%salaries.length],
+    requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'
+  }));
+
   const PUBLIC_PAGE_SIZE=5;
   let currentPublicList=vacancies;
   let visiblePublicCount=PUBLIC_PAGE_SIZE;
@@ -98,16 +109,23 @@
     currentPublicList=list;
 
     const visibleList=list.slice(0,visiblePublicCount);
-
     if(count)count.textContent=list.length+' live vacancies';
 
     grid.innerHTML=visibleList.map(j=>`<article class="job public-job">
       <div class="job-top"><span class="count">${esc(j.sector)}</span><span>✓ Verified access</span></div>
       <h3>${esc(j.rank)}</h3>
       <div class="company public-no-company">Employer details available after account sign-in</div>
-      <div class="job-meta"><div>Vessel<b>${esc(j.vessel)}</b></div><div>Location<b>${esc(j.location)}</b></div><div>Contract<b>${esc(j.contract)}</b></div><div>Salary<b>${esc(j.salary)}</b></div></div>
+      <div class="job-meta">
+        <div>Vessel<b>${esc(j.vessel)}</b></div>
+        <div>Location<b>${esc(j.location)}</b></div>
+        <div>Contract<b>${esc(j.contract)}</b></div>
+        <div>Salary<b>${esc(j.salary)}</b></div>
+      </div>
       <p class="requirements">${esc(j.requirements)}</p>
-      <div class="job-actions"><button class="btn outline public-view" data-job="${esc(j.id)}">View Details</button><button class="btn primary public-apply" data-job="${esc(j.id)}">Apply Now</button></div>
+      <div class="job-actions">
+        <button class="btn outline public-view" data-job="${esc(j.id)}">View Details</button>
+        <button class="btn primary public-apply" data-job="${esc(j.id)}">Apply Now</button>
+      </div>
     </article>`).join('');
 
     const oldMore=document.querySelector('#publicVacancyMore');
@@ -120,13 +138,10 @@
       moreWrap.innerHTML='<button type="button" class="btn outline" id="publicVacancyMoreBtn">View More Vacancies →</button>';
       grid.insertAdjacentElement('afterend',moreWrap);
 
-      const moreBtn=moreWrap.querySelector('#publicVacancyMoreBtn');
-      if(moreBtn){
-        moreBtn.addEventListener('click',function(){
-          visiblePublicCount+=PUBLIC_PAGE_SIZE;
-          renderPublic(currentPublicList,false);
-        });
-      }
+      moreWrap.querySelector('#publicVacancyMoreBtn')?.addEventListener('click',()=>{
+        visiblePublicCount=Math.min(visiblePublicCount+PUBLIC_PAGE_SIZE,list.length);
+        renderPublic(currentPublicList,false);
+      });
     }
   }
 
