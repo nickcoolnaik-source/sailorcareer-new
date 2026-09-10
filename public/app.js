@@ -213,6 +213,57 @@ async function handleRecovery(){
     closeModal();
   }catch(err){toast(err.message);resetTurnstile()}
 }
+
+function recoveryTokenFromHash(){
+  const hash=String(location.hash||'').replace(/^#/,'');
+  if(!hash)return null;
+  const params=new URLSearchParams(hash);
+  if(params.get('type')!=='recovery')return null;
+  const accessToken=params.get('access_token');
+  return accessToken?{accessToken}:null;
+}
+
+function openPasswordRecovery(accessToken){
+  openModal(`<div class="kicker"><span></span> PASSWORD RECOVERY</div><h2>Set a new password</h2><p>Choose a new password for your SailorCareer account.</p><form id="recoveryForm" class="form-grid"><input class="full" id="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password (min 8 chars)" required><input class="full" id="confirmPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Confirm new password" required><button class="btn primary full" id="savePassword" type="submit">Update Password</button></form><p class="form-note">After updating your password, sign in again from the appropriate SailorCareer portal.</p>`);
+  $('#recoveryForm').onsubmit=async e=>{
+    e.preventDefault();
+    const password=$('#newPassword').value;
+    const confirm=$('#confirmPassword').value;
+    if(password.length<8){toast('Password must be at least 8 characters.');return}
+    if(password!==confirm){toast('Passwords do not match.');return}
+    const button=$('#savePassword');
+    button.disabled=true;button.textContent='Updating…';
+    try{
+      if(!config?.supabaseUrl||!config?.supabaseAnonKey)throw Error('Authentication configuration unavailable. Please refresh and try again.');
+      const r=await fetch(`${config.supabaseUrl}/auth/v1/user`,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json',apikey:config.supabaseAnonKey,Authorization:`Bearer ${accessToken}`},
+        body:JSON.stringify({password})
+      });
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw Error(d?.msg||d?.message||d?.error_description||'Unable to update password. The recovery link may have expired.');
+      history.replaceState({},document.title,location.pathname);
+      closeModal();
+      toast('Password updated successfully. You can now sign in.');
+    }catch(err){
+      toast(err.message);
+      button.disabled=false;
+      button.textContent='Update Password';
+    }
+  };
+}
+
+async function handleRecoveryLink(){
+  const recovery=recoveryTokenFromHash();
+  if(recovery){
+    openPasswordRecovery(recovery.accessToken);
+    return;
+  }
+  if(location.search.includes('auth=recovery')){
+    history.replaceState({},document.title,location.pathname);
+    toast('Password recovery link is invalid or expired. Please request a new reset email.');
+  }
+}
 function updateHeader(){
   const auth=authStore.get();
   $$('.head-actions').forEach(x=>{
@@ -248,9 +299,9 @@ $('#supportForm').onsubmit=e=>{e.preventDefault();toast('Support request receive
 $('#hamb').onclick=()=>$('#nav').classList.toggle('open');
 $$('#nav a').forEach(a=>a.onclick=()=>$('#nav').classList.remove('open'));
 
-loadConfig().then(()=>{
+loadConfig().then(async()=>{
   const auth=authStore.get();
   if(location.search.includes('auth=verified'))toast('Email verified. You can now sign in.');
-  if(location.search.includes('auth=recovery'))toast('Password recovery link opened. Set your new password in the Supabase recovery flow.');
   if(auth)updateHeader();
+  await handleRecoveryLink();
 });
