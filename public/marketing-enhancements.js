@@ -85,11 +85,24 @@
     return {id:'public-'+(i+1),rank,vessel,sector,location:locations[(i*7)%locations.length],contract:contracts[i%contracts.length],salary:salaries[(i*2)%salaries.length],requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'};
   });
 
-  function renderPublic(list){
+  // Render only a small number of public vacancies at first.
+  // The full 100-item dataset stays available, but the homepage initially
+  // creates only 5 vacancy cards to keep the page light and responsive.
+  const PUBLIC_PAGE_SIZE=5;
+  let currentPublicList=vacancies;
+  let visiblePublicCount=PUBLIC_PAGE_SIZE;
+
+  function renderPublic(list,reset=true){
     const grid=$('#jobGrid'), count=$('#jobCount');
     if(!grid)return;
-    count.textContent=list.length+' live vacancies';
-    grid.innerHTML=list.map(j=>`<article class="job public-job">
+
+    currentPublicList=list;
+    if(reset) visiblePublicCount=PUBLIC_PAGE_SIZE;
+
+    const visibleList=list.slice(0,visiblePublicCount);
+    count.textContent=`Showing ${visibleList.length} of ${list.length} vacancies`;
+
+    grid.innerHTML=visibleList.map(j=>`<article class="job public-job">
       <div class="job-top"><span class="count">${esc(j.sector)}</span><span>✓ Verified access</span></div>
       <h3>${esc(j.rank)}</h3>
       <div class="company public-no-company">Employer details available after account sign-in</div>
@@ -97,18 +110,45 @@
       <p class="requirements">${esc(j.requirements)}</p>
       <div class="job-actions"><button class="btn outline public-view" data-job="${esc(j.id)}">View Details</button><button class="btn primary public-apply" data-job="${esc(j.id)}">Apply Now</button></div>
     </article>`).join('');
+
+    const oldMore=document.querySelector('#publicViewMore');
+    if(oldMore) oldMore.remove();
+
+    if(visiblePublicCount < list.length){
+      const more=document.createElement('div');
+      more.id='publicViewMore';
+      more.className='public-view-more';
+      more.style.cssText='display:flex;justify-content:center;align-items:center;margin:24px 0 8px;';
+      more.innerHTML='<button type="button" class="btn outline" id="publicViewMoreBtn">View More Vacancies →</button>';
+      grid.insertAdjacentElement('afterend',more);
+    }
   }
+
   renderPublic(vacancies);
+
+  document.addEventListener('click',e=>{
+    const moreBtn=e.target.closest('#publicViewMoreBtn');
+    if(!moreBtn)return;
+    visiblePublicCount+=PUBLIC_PAGE_SIZE;
+    renderPublic(currentPublicList,false);
+  });
 
   const form=$('#jobSearch');
   if(form){
     form.addEventListener('submit',function(){
       setTimeout(()=>{
         const r=$('#rankFilter')?.value||'', v=$('#vesselFilter')?.value||'', s=$('#sectorFilter')?.value||'', k=($('#keywordFilter')?.value||'').toLowerCase();
-        renderPublic(vacancies.filter(j=>(!r||j.rank===r)&&(!v||j.vessel===v)&&(!s||j.sector===s)&&(!k||[j.rank,j.vessel,j.sector,j.location,j.contract].join(' ').toLowerCase().includes(k))));
+        const filtered=vacancies.filter(j=>
+          (!r||j.rank===r)&&
+          (!v||j.vessel===v)&&
+          (!s||j.sector===s)&&
+          (!k||[j.rank,j.vessel,j.sector,j.location,j.contract].join(' ').toLowerCase().includes(k))
+        );
+        renderPublic(filtered,true);
       },0);
     });
   }
+
   document.addEventListener('click',e=>{
     const b=e.target.closest('.public-apply,.public-view');
     if(!b)return;
