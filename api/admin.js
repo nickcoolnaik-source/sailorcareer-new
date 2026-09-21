@@ -130,6 +130,73 @@ module.exports=async function(req,res){
       return res.json({success:true,subscription:updated[0]});
     }
 
+    if(action==='proCampaignRecipients'){
+      const profiles=await table('profiles','id,email,full_name,is_active','&role=eq.seafarer&is_active=eq.true&order=created_at.asc');
+      const ids=profiles.map(x=>x.id).filter(Boolean);
+      const subs=ids.length?await table('subscriptions','user_id,status','&user_id=in.('+ids.join(',')+')&plan=eq.seafarer_pro'):[];
+      const pro=new Set(subs.filter(x=>x.status==='active').map(x=>x.user_id));
+      const recipients=profiles.filter(x=>x.email&&!pro.has(x.id)).map(x=>({id:x.id,email:x.email,full_name:x.full_name||'Seafarer'}));
+      return res.json({success:true,count:recipients.length,recipients});
+    }
+
+    if(action==='sendProCampaign'){
+      if(!process.env.RESEND_API_KEY) throw Error('RESEND_API_KEY is not configured in Vercel.');
+      const profiles=await table('profiles','id,email,full_name,is_active','&role=eq.seafarer&is_active=eq.true&order=created_at.asc');
+      const ids=profiles.map(x=>x.id).filter(Boolean);
+      const subs=ids.length?await table('subscriptions','user_id,status','&user_id=in.('+ids.join(',')+')&plan=eq.seafarer_pro'):[];
+      const pro=new Set(subs.filter(x=>x.status==='active').map(x=>x.user_id));
+      const recipients=profiles.filter(x=>x.email&&!pro.has(x.id)).map(x=>({id:x.id,email:x.email,full_name:x.full_name||'Seafarer'}));
+      if(!recipients.length) return res.json({success:true,sent:0,failed:0,total:0,message:'No eligible Free Seafarers found.'});
+
+      const from=process.env.RESEND_FROM_EMAIL||'SailorCareer <info@sailorcareer.com>';
+      const escHtml=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+      const emails=recipients.map(x=>{
+        const name=escHtml(x.full_name);
+        return {
+          from,
+          to:[x.email],
+          subject:`${x.full_name}, Unlock SailorCareer Pro for ₹499/Year ⚓`,
+          html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142033;max-width:680px;margin:auto">
+            <h2>⚓ SailorCareer Pro</h2>
+            <p>Dear <b>${name}</b>,</p>
+            <p>You have already taken the first step by creating your Free Seafarer Profile on SailorCareer.</p>
+            <p>Now take the next step towards managing your maritime career more professionally with <b>SailorCareer Pro — ₹499/year</b>.</p>
+            <ul>
+              <li>Professional Maritime CV</li>
+              <li>Easy Job Applications</li>
+              <li>Application Tracking</li>
+              <li>Sea Service Calculator</li>
+              <li>Certificate Expiry Tracker</li>
+              <li>Availability Status</li>
+              <li>Private Document Management</li>
+              <li>Complete Profile to Apply</li>
+              <li>Maritime Career Guidance</li>
+              <li>Course Booking & Support</li>
+            </ul>
+            <p><b>Upgrade:</b> <a href="https://www.sailorcareer.com/dashboard">https://www.sailorcareer.com/dashboard</a></p>
+            <p>Log in and select <b>Upgrade to Pro — ₹499/year</b>.</p>
+            <p><b>Your Career. Your Next Voyage. 🚢</b></p>
+            <hr>
+            <small>You are receiving this promotional message because you registered as a seafarer on SailorCareer. If you do not want promotional emails, contact info@sailorcareer.com.</small>
+          </div>`
+        };
+      });
+
+      let sent=0,failed=0,errors=[];
+      for(let i=0;i<emails.length;i+=100){
+        const batch=emails.slice(i,i+100);
+        const r=await fetch('https://api.resend.com/emails/batch',{
+          method:'POST',
+          headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json'},
+          body:JSON.stringify(batch)
+        });
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok){failed+=batch.length;errors.push(d?.message||`Resend HTTP ${r.status}`);}
+        else sent+=batch.length;
+      }
+      return res.json({success:true,total:recipients.length,sent,failed,errors});
+    }
+
     if(action==='payments') return res.json({success:true,payments:await table('payment_events','*','&order=created_at.desc')});
 
     if(action==='masters'){
