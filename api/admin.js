@@ -139,6 +139,20 @@ module.exports=async function(req,res){
       return res.json({success:true,count:recipients.length,recipients});
     }
 
+    if(action==='sendProCampaignTest'){
+      if(!process.env.RESEND_API_KEY) throw Error('RESEND_API_KEY is not configured in Vercel.');
+      const uid=clean(req.body?.user_id); if(!uid) throw Error('Seafarer user id is required.');
+      const profile=(await table('profiles','id,email,full_name,is_active',`&id=eq.${encodeURIComponent(uid)}&role=eq.seafarer&is_active=eq.true&limit=1`))[0];
+      if(!profile?.email) throw Error('Eligible seafarer not found.');
+      const sub=(await table('subscriptions','status',`&user_id=eq.${encodeURIComponent(uid)}&plan=eq.seafarer_pro&status=eq.active&limit=1`))[0];
+      if(sub) throw Error('This seafarer already has an active Seafarer Pro subscription.');
+      const from=process.env.RESEND_FROM_EMAIL||'SailorCareer <info@sailorcareer.com>';
+      const name=String(profile.full_name||'Seafarer').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+      const payload={from,to:[profile.email],subject:`${profile.full_name||'Seafarer'}, Unlock SailorCareer Pro for ₹499/Year ⚓`,html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142033;max-width:680px;margin:auto"><h2>⚓ SailorCareer Pro</h2><p>Dear <b>${name}</b>,</p><p>You have already taken the first step by creating your Free Seafarer Profile on SailorCareer.</p><p>Now take the next step towards managing your maritime career more professionally with <b>SailorCareer Pro — ₹499/year</b>.</p><ul><li>Professional Maritime CV</li><li>Easy Job Applications</li><li>Application Tracking</li><li>Sea Service Calculator</li><li>Certificate Expiry Tracker</li><li>Availability Status</li><li>Private Document Management</li><li>Complete Profile to Apply</li><li>Maritime Career Guidance</li><li>Course Booking &amp; Support</li></ul><p><b>Upgrade:</b> <a href="https://www.sailorcareer.com/dashboard">https://www.sailorcareer.com/dashboard</a></p><p>Log in and select <b>Upgrade to Pro — ₹499/year</b>.</p><p><b>Your Career. Your Next Voyage. 🚢</b></p><hr><small>You are receiving this promotional message because you registered as a seafarer on SailorCareer. If you do not want promotional emails, contact info@sailorcareer.com.</small></div>`};
+      const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const d=await r.json().catch(()=>({})); if(!r.ok) throw Error(d?.message||`Resend HTTP ${r.status}`);
+      return res.json({success:true,message:`Test email sent to ${profile.email}.`,resend:d});
+    }
     if(action==='sendProCampaign'){
       if(!process.env.RESEND_API_KEY) throw Error('RESEND_API_KEY is not configured in Vercel.');
       const profiles=await table('profiles','id,email,full_name,is_active','&role=eq.seafarer&is_active=eq.true&order=created_at.asc');
