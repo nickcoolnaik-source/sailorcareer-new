@@ -135,8 +135,15 @@ module.exports=async function(req,res){
       const ids=profiles.map(x=>x.id).filter(Boolean);
       const subs=ids.length?await table('subscriptions','user_id,status','&user_id=in.('+ids.join(',')+')&plan=eq.seafarer_pro'):[];
       const pro=new Set(subs.filter(x=>x.status==='active').map(x=>x.user_id));
-      const recipients=profiles.filter(x=>x.email&&!pro.has(x.id)).map(x=>({id:x.id,email:x.email,full_name:x.full_name||'Seafarer'}));
-      return res.json({success:true,count:recipients.length,recipients});
+      const logs=ids.length?await table('pro_campaign_sends','user_id,status,sent_at,resend_id','&user_id=in.('+ids.join(',')+')&order=sent_at.desc'):[];
+      const latest=new Map(); for(const x of logs){if(!latest.has(x.user_id))latest.set(x.user_id,x);}
+      const recipients=profiles.filter(x=>x.email&&!pro.has(x.id)).map(x=>{const l=latest.get(x.id);return {id:x.id,email:x.email,full_name:x.full_name||'Seafarer',sent:!!l&&l.status==='sent',sent_at:l?.sent_at||null};});
+      return res.json({success:true,count:recipients.filter(x=>!x.sent).length,totalEligible:recipients.length,recipients});
+    }
+
+    if(action==='proCampaignLog'){
+      const logs=await table('pro_campaign_sends','id,user_id,email,full_name,status,sent_at,resend_id,error_message','&order=sent_at.desc&limit=100');
+      return res.json({success:true,logs});
     }
 
     if(action==='sendProCampaignTest'){
@@ -148,9 +155,14 @@ module.exports=async function(req,res){
       if(sub) throw Error('This seafarer already has an active Seafarer Pro subscription.');
       const from=process.env.RESEND_FROM_EMAIL||'SailorCareer <info@sailorcareer.com>';
       const name=String(profile.full_name||'Seafarer').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-      const payload={from,to:[profile.email],subject:`${profile.full_name||'Seafarer'}, Unlock SailorCareer Pro for ₹499/Year ⚓`,html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142033;max-width:680px;margin:auto"><h2>⚓ SailorCareer Pro</h2><p>Dear <b>${name}</b>,</p><p>You have already taken the first step by creating your Free Seafarer Profile on SailorCareer.</p><p>Now take the next step towards managing your maritime career more professionally with <b>SailorCareer Pro — ₹499/year</b>.</p><ul><li>Professional Maritime CV</li><li>Easy Job Applications</li><li>Application Tracking</li><li>Sea Service Calculator</li><li>Certificate Expiry Tracker</li><li>Availability Status</li><li>Private Document Management</li><li>Complete Profile to Apply</li><li>Maritime Career Guidance</li><li>Course Booking &amp; Support</li></ul><p><b>Upgrade:</b> <a href="https://www.sailorcareer.com/dashboard">https://www.sailorcareer.com/dashboard</a></p><p>Log in and select <b>Upgrade to Pro — ₹499/year</b>.</p><p><b>Your Career. Your Next Voyage. 🚢</b></p><hr><small>You are receiving this promotional message because you registered as a seafarer on SailorCareer. If you do not want promotional emails, contact info@sailorcareer.com.</small></div>`};
+      const payload={from,to:[profile.email],subject:`${profile.full_name||'Seafarer'}, manage your maritime career more effectively ⚓`,html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142033;max-width:680px;margin:auto"><h2>⚓ SailorCareer Pro</h2><p>Dear <b>${name}</b>,</p><p>You have already taken the first step by creating your Free Seafarer Profile on SailorCareer.</p><p>Your SailorCareer account can do more than store a basic profile. <b>SailorCareer Pro — ₹499/year</b> adds tools to help you manage your maritime job search.</p><div style="background:#eef7f4;border-left:4px solid #087443;padding:14px 16px;margin:18px 0;border-radius:6px"><p style="margin:0 0 8px"><b>🚢 Explore 10+ ongoing vacancies for your current rank</b></p><p style="margin:0">Discover current opportunities on SailorCareer and, where direct applications are enabled, apply to participating companies through the portal.</p></div><ul><li><b>⚡ Single-Click Applications</b> — apply quickly using your completed profile where enabled</li><li><b>🟢 Availability Status</b> — show Available Now, 30 Days, 60 Days or Currently Onboard</li><li><b>🔔 Recent Vacancy Notifications</b> — stay updated when new opportunities matching your profile become available</li><li><b>📊 Application Tracking</b> — manage your applications from one dashboard</li><li><b>📄 Professional Maritime CV</b></li><li><b>⚓ Sea Service Calculator</b></li><li><b>🔔 Certificate Expiry Tracker</b></li><li><b>📁 Private Document Management</b></li><li><b>📚 Maritime Career Guidance</b></li><li><b>🎓 Course Booking &amp; Support</b></li></ul><p><b>Explore your account:</b> <a href="https://www.sailorcareer.com/dashboard">https://www.sailorcareer.com/dashboard</a></p><p>If you choose to upgrade, select <b>Upgrade to Pro — ₹499/year</b> after logging in.</p><p><b>Your Career. Your Next Voyage. 🚢</b></p><hr><small>This is an optional SailorCareer service update about Pro features. If you do not want promotional messages from SailorCareer, contact info@sailorcareer.com to opt out.</small></div>`};
       const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      const d=await r.json().catch(()=>({})); if(!r.ok) throw Error(d?.message||`Resend HTTP ${r.status}`);
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){
+        await sb('/rest/v1/pro_campaign_sends',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({user_id:profile.id,email:profile.email,full_name:profile.full_name||'Seafarer',status:'failed',sent_at:new Date().toISOString(),error_message:d?.message||`Resend HTTP ${r.status}`})});
+        throw Error(d?.message||`Resend HTTP ${r.status}`);
+      }
+      await sb('/rest/v1/pro_campaign_sends',{method:'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify({user_id:profile.id,email:profile.email,full_name:profile.full_name||'Seafarer',status:'sent',sent_at:new Date().toISOString(),resend_id:d?.id||null})});
       return res.json({success:true,message:`Test email sent to ${profile.email}.`,resend:d});
     }
     if(action==='sendProCampaign'){
@@ -169,29 +181,33 @@ module.exports=async function(req,res){
         return {
           from,
           to:[x.email],
-          subject:`${x.full_name}, Unlock SailorCareer Pro for ₹499/Year ⚓`,
+          subject:`${x.full_name}, manage your maritime career more effectively ⚓`,
           html:`<div style="font-family:Arial,sans-serif;line-height:1.6;color:#142033;max-width:680px;margin:auto">
             <h2>⚓ SailorCareer Pro</h2>
             <p>Dear <b>${name}</b>,</p>
             <p>You have already taken the first step by creating your Free Seafarer Profile on SailorCareer.</p>
             <p>Now take the next step towards managing your maritime career more professionally with <b>SailorCareer Pro — ₹499/year</b>.</p>
+            <div style="background:#eef7f4;border-left:4px solid #087443;padding:14px 16px;margin:18px 0;border-radius:6px">
+              <p style="margin:0 0 8px"><b>🚢 Explore 10+ ongoing vacancies for your current rank</b></p>
+              <p style="margin:0">Discover current opportunities on SailorCareer and, where direct applications are enabled, apply to participating companies through the portal.</p>
+            </div>
             <ul>
-              <li>Professional Maritime CV</li>
-              <li>Easy Job Applications</li>
-              <li>Application Tracking</li>
-              <li>Sea Service Calculator</li>
-              <li>Certificate Expiry Tracker</li>
-              <li>Availability Status</li>
-              <li>Private Document Management</li>
-              <li>Complete Profile to Apply</li>
-              <li>Maritime Career Guidance</li>
-              <li>Course Booking & Support</li>
+              <li><b>⚡ Single-Click Applications</b> — apply quickly using your completed professional profile where enabled</li>
+              <li><b>🟢 Availability Status</b> — show Available Now, 30 Days, 60 Days or Currently Onboard</li>
+              <li><b>🔔 Recent Vacancy Notifications</b> — stay updated when new opportunities matching your profile become available</li>
+              <li><b>📊 Application Tracking</b> — manage your applications from one dashboard</li>
+              <li><b>📄 Professional Maritime CV</b> — maintain a structured profile and CV</li>
+              <li><b>⚓ Sea Service Calculator</b> — organise vessel, rank and service dates</li>
+              <li><b>🔔 Certificate Expiry Tracker</b> — keep important expiry dates organised</li>
+              <li><b>📁 Private Document Management</b> — organise career documents and certificates</li>
+              <li><b>📚 Maritime Career Guidance</b> — access Watchkeeping, CoC, DC/CDC and fresher guidance</li>
+              <li><b>🎓 Course Booking &amp; Support</b> — submit course and career support requests</li>
             </ul>
             <p><b>Upgrade:</b> <a href="https://www.sailorcareer.com/dashboard">https://www.sailorcareer.com/dashboard</a></p>
             <p>Log in and select <b>Upgrade to Pro — ₹499/year</b>.</p>
             <p><b>Your Career. Your Next Voyage. 🚢</b></p>
             <hr>
-            <small>You are receiving this promotional message because you registered as a seafarer on SailorCareer. If you do not want promotional emails, contact info@sailorcareer.com.</small>
+            <small>This is an optional SailorCareer service update about Pro features. If you do not want promotional messages from SailorCareer, contact info@sailorcareer.com to opt out.</small>
           </div>`
         };
       });
