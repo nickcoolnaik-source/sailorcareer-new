@@ -1,155 +1,26 @@
-const {sb,authUser}=require('./_supabase');
-
-async function adminAuth(req){
-  const h=req.headers.authorization||'';
-  const token=h.startsWith('Bearer ')?h.slice(7):'';
-  if(!token) throw Error('Admin authentication required.');
-  const u=await authUser(token);
-  if(!u?.id) throw Error('Invalid session.');
-  const rows=await sb(`/rest/v1/profiles?id=eq.${encodeURIComponent(u.id)}&select=id,email,full_name,role,is_active`);
-  const p=rows[0];
-  if(!p||p.role!=='admin'||!p.is_active) throw Error('Admin access required.');
-  return p;
-}
-
-const clean=(v)=>String(v??'').trim();
-const table=(name,select='*',query='')=>sb(`/rest/v1/${name}?select=${encodeURIComponent(select)}${query}`);
-const patch=(name,query,body)=>sb(`/rest/v1/${name}?${query}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});
-
-async function overview(){
-  const [profiles,companies,jobs,apps,subs,payments]=await Promise.all([
-    table('profiles','id,role,is_active'), table('companies','id,verified,rpsl_status'), table('jobs','id,status,approved'),
-    table('applications','id,status'), table('subscriptions','id,plan,status,amount,created_at'), table('payment_events','id,event_type,order_id,provider,created_at')
-  ]);
-  return {
-    seafarers:profiles.filter(x=>x.role==='seafarer').length,
-    employers:profiles.filter(x=>x.role==='employer').length,
-    pendingEmployers:companies.filter(x=>!x.verified).length,
-    jobs:jobs.length,pendingJobs:jobs.filter(x=>!x.approved).length,
-    applications:apps.length,activeSubscriptions:subs.filter(x=>x.status==='active').length,
-    payments:payments.length
-  };
-}
-
-module.exports=async function(req,res){
-  try{
-    const me=await adminAuth(req);
-    const action=clean(req.query?.action||req.body?.action||'overview');
-
-    if(action==='overview') return res.json({success:true,admin:me,stats:await overview()});
-
-    if(action==='employers'){
-      const companies=await table('companies','*','&order=created_at.desc');
-      const ids=companies.map(x=>x.user_id).filter(Boolean);
-      const profiles=ids.length?await table('profiles','id,email,full_name,mobile,is_active,created_at',`&id=in.(${ids.join(',')})`):[];
-      const subs=ids.length?await table('subscriptions','user_id,plan,status,provider_event,created_at',`&user_id=in.(${ids.join(',')})&plan=eq.employer_pro&order=created_at.desc`):[];
-      const map=new Map(profiles.map(x=>[x.id,x])); const paid=new Set(subs.filter(x=>x.status==='active'||(x.status==='pending'&&/(SUCCESS|PAID)/i.test(String(x.provider_event||'')))).map(x=>x.user_id));
-      return res.json({success:true,employers:companies.map(c=>({...c,payment_received:paid.has(c.user_id),profile:map.get(c.user_id)||null}))});
-    }
-    if(action==='verifyEmployer'||action==='rejectEmployer'){
-      const id=clean(req.body?.company_id);
-      if(!id) throw Error('Company id required.');
-      const company=(await table('companies','*',`&id=eq.${encodeURIComponent(id)}&limit=1`))[0];
-      if(!company) throw Error('Company not found.');
-      const approved=action==='verifyEmployer';
-      if(approved){const paid=(await table('subscriptions','id,plan,status,provider_event',`&user_id=eq.${encodeURIComponent(company.user_id)}&plan=eq.employer_pro&status=eq.pending&order=created_at.desc&limit=1`))[0];if(!paid||!/(SUCCESS|PAID)/i.test(String(paid.provider_event||'')))throw Error('Employer must complete the ₹49,999 payment before admin approval.');await patch('subscriptions',`id=eq.${encodeURIComponent(paid.id)}`,{status:'active',started_at:new Date().toISOString(),updated_at:new Date().toISOString()});}
-      await patch('companies',`id=eq.${encodeURIComponent(id)}`,{verified:approved,verified_at:approved?new Date().toISOString():null,rpsl_status:approved?'verified':'rejected'});
-      if(company.user_id){await patch('profiles',`id=eq.${encodeURIComponent(company.user_id)}`,{is_active:approved});if(!approved){const paid=(await table('subscriptions','id,plan,status',`&user_id=eq.${encodeURIComponent(company.user_id)}&plan=eq.employer_pro&status=in.(pending,active)&order=created_at.desc&limit=1`))[0];if(paid)await patch('subscriptions',`id=eq.${encodeURIComponent(paid.id)}`,{status:'suspended',updated_at:new Date().toISOString()});}}
-      return res.json({success:true,verified:approved});
-    }
-    if(action==='suspendEmployer'||action==='activateEmployer'){
-      const id=clean(req.body?.user_id); if(!id) throw Error('User id required.');
-      await patch('profiles',`id=eq.${encodeURIComponent(id)}`,{is_active:action==='activateEmployer'});if(action==='suspendEmployer'){const paid=(await table('subscriptions','id,status',`&user_id=eq.${encodeURIComponent(id)}&plan=eq.employer_pro&status=eq.active&order=created_at.desc&limit=1`))[0];if(paid)await patch('subscriptions',`id=eq.${encodeURIComponent(paid.id)}`,{status:'suspended',updated_at:new Date().toISOString()});}
-      return res.json({success:true,is_active:action==='activateEmployer'});
-    }
-
-    if(action==='seafarers'){
-      const profiles=await table('profiles','id,email,full_name,mobile,is_active,created_at','&role=eq.seafarer&order=created_at.desc');
-      const ids=profiles.map(x=>x.id); const seaf=ids.length?await table('seafarer_profiles','user_id,nationality,total_sea_months,rank_experience_months,professional_summary,visibility,resume_url',`&user_id=in.(${ids.join(',')})`):[];
-      const subs=ids.length?await table('subscriptions','user_id,plan,status,amount,currency,provider_order_id,provider_event,started_at,created_at',`&user_id=in.(${ids.join(',')})&plan=eq.seafarer_pro&order=created_at.desc`):[];
-      const map=new Map(seaf.map(x=>[x.user_id,x]));
-      const subMap=new Map();
-      for(const x of subs){if(!subMap.has(x.user_id))subMap.set(x.user_id,x);}
-      return res.json({success:true,seafarers:profiles.map(p=>({...p,seafarer:map.get(p.id)||null,subscription:subMap.get(p.id)||null}))});
-    }
-
-    if(action==='jobs'){
-      const jobs=await table('jobs','*,rank:ranks(name),vessel_type:vessel_types(name),sector:sectors(name)','&order=created_at.desc');
-      return res.json({success:true,jobs});
-    }
-    if(action==='jobStatus'){
-      const id=clean(req.body?.job_id); const status=clean(req.body?.status);
-      const allowed=['draft','published','closed','rejected'];
-      if(!id||!allowed.includes(status)) throw Error('Invalid job status.');
-      const updated=await patch('jobs',`id=eq.${encodeURIComponent(id)}`,{status,approved:status==='published',updated_at:new Date().toISOString()});
-      return res.json({success:true,job:updated[0]});
-    }
-
-    if(action==='applications'){
-      const apps=await table('applications','*','&order=created_at.desc');
-      return res.json({success:true,applications:apps});
-    }
-    if(action==='applicationStatus'){
-      const id=clean(req.body?.application_id); const status=clean(req.body?.status);
-      const allowed=['Applied','Under Review','Shortlisted','Interview','Selected','Rejected','Withdrawn','Joining Process'];
-      if(!id||!allowed.includes(status)) throw Error('Invalid application status.');
-      const updated=await patch('applications',`id=eq.${encodeURIComponent(id)}`,{status,updated_at:new Date().toISOString()});
-      return res.json({success:true,application:updated[0]});
-    }
-
-    if(action==='subscriptions'){
-      const subs=await table('subscriptions','*','&order=created_at.desc');
-      const ids=[...new Set(subs.map(x=>x.user_id).filter(Boolean))];
-      const profiles=ids.length?await table('profiles','id,email,full_name,mobile,is_active,created_at',`&id=in.(${ids.join(',')})`):[];
-      const pMap=new Map(profiles.map(x=>[x.id,x]));
-      return res.json({success:true,subscriptions:subs.map(x=>({...x,profile:pMap.get(x.user_id)||null}))});
-    }
-    if(action==='reconcileSubscription'){
-      const id=clean(req.body?.subscription_id);
-      if(!id) throw Error('Subscription id required.');
-      const sub=(await table('subscriptions','id,user_id,plan,status,amount,currency,provider_order_id,provider_event,started_at,renews_at,created_at',`&id=eq.${encodeURIComponent(id)}&limit=1`))[0];
-      if(!sub) throw Error('Subscription not found.');
-      if(sub.plan!=='seafarer_pro') throw Error('Only Seafarer Pro payments can be verified here.');
-      if(!sub.provider_order_id) throw Error('Cashfree order ID is missing.');
-      const base=process.env.CASHFREE_ENV==='PRODUCTION'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';
-      const headers={'Content-Type':'application/json','x-api-version':process.env.CASHFREE_API_VERSION||'2025-01-01','x-client-id':process.env.CASHFREE_APP_ID,'x-client-secret':process.env.CASHFREE_SECRET_KEY};
-      const r=await fetch(`${base}/orders/${encodeURIComponent(sub.provider_order_id)}/payments`,{headers});
-      const payments=await r.json().catch(()=>[]);
-      if(!r.ok) throw Error(`Cashfree verification failed (${r.status}).`);
-      const paid=Array.isArray(payments)&&payments.some(x=>String(x.payment_status||x.status||'').toUpperCase()==='SUCCESS');
-      if(!paid) return res.json({success:true,verified:false,status:sub.status,payments:Array.isArray(payments)?payments:[]});
-      const now=new Date().toISOString();
-      const updated=(await patch('subscriptions',`id=eq.${encodeURIComponent(id)}`,{status:'active',started_at:sub.started_at||now,updated_at:now,provider_event:'PAYMENT_SUCCESS_ADMIN_RECONCILED'}))[0];
-      return res.json({success:true,verified:true,subscription:updated,payments});
-    }
-    if(action==='subscriptionStatus'){
-      const id=clean(req.body?.subscription_id); const status=clean(req.body?.status);
-      const allowed=['pending','active','suspended','expired','cancelled'];
-      if(!id||!allowed.includes(status)) throw Error('Invalid subscription status.');
-      const updated=await patch('subscriptions',`id=eq.${encodeURIComponent(id)}`,{status,updated_at:new Date().toISOString()});
-      return res.json({success:true,subscription:updated[0]});
-    }
-
-    if(action==='payments') return res.json({success:true,payments:await table('payment_events','*','&order=created_at.desc')});
-
-    if(action==='masters'){
-      const [r,v,s]=await Promise.all([table('ranks','*','&order=sort_order.asc,name.asc'),table('vessel_types','*','&order=sort_order.asc,name.asc'),table('sectors','*','&order=sort_order.asc,name.asc')]);
-      return res.json({success:true,ranks:r,vessel_types:v,sectors:s});
-    }
-    if(action==='masterSave'){
-      const type=clean(req.body?.type); const name=clean(req.body?.name); const id=clean(req.body?.id);
-      const map={rank:'ranks',vessel_type:'vessel_types',sector:'sectors'}; const tableName=map[type];
-      if(!tableName||!name) throw Error('Master type and name are required.');
-      if(id){const updated=await patch(tableName,`id=eq.${encodeURIComponent(id)}`,{name,active:req.body?.active!==false,sort_order:Number(req.body?.sort_order||0)});return res.json({success:true,item:updated[0]});}
-      const created=await sb(`/rest/v1/${tableName}`,{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({name,active:true,sort_order:Number(req.body?.sort_order||0)})});
-      return res.status(201).json({success:true,item:created[0]});
-    }
-    if(action==='masterToggle'){
-      const type=clean(req.body?.type),id=clean(req.body?.id); const map={rank:'ranks',vessel_type:'vessel_types',sector:'sectors'}; const tableName=map[type];
-      if(!tableName||!id) throw Error('Master type and id are required.');
-      const updated=await patch(tableName,`id=eq.${encodeURIComponent(id)}`,{active:req.body?.active===true});
-      return res.json({success:true,item:updated[0]});
-    }
-    throw Error('Unknown admin action.');
-  }catch(e){return res.status(/authentication|access required|invalid session/i.test(String(e.message))?401:400).json({error:e.message||'Admin request failed.'});}
-};
+(() => {
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  let token=sessionStorage.getItem('sc_admin_token')||'';
+  let current='employers'; let turnstileToken=''; let turnstileWidget=null;
+  const app=$('#admin-app'), loginView=$('#login-view'), dash=$('#dashboard-view'), panel=$('#panel'), stats=$('#stats');
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  async function api(action,body={}){const r=await fetch('/api/admin?action='+encodeURIComponent(action),{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(body)});const d=await r.json().catch(()=>({error:'Invalid server response'}));if(!r.ok)throw Error(d.error||'Admin request failed.');return d}
+  function pill(v){const s=String(v??'');const cls=/verified|active|published|selected/i.test(s)?'ok':/pending|draft|under review|interview/i.test(s)?'warn':/rejected|suspended|expired|cancelled/i.test(s)?'bad':'';return `<span class="pill ${cls}">${esc(s||'—')}</span>`}
+  async function loadStats(){const d=await api('overview');stats.innerHTML=[['Seafarers',d.stats.seafarers],['Employers',d.stats.employers],['Pending Employers',d.stats.pendingEmployers],['Jobs',d.stats.jobs],['Pending Jobs',d.stats.pendingJobs],['Applications',d.stats.applications],['Active Subscriptions',d.stats.activeSubscriptions],['Payment Events',d.stats.payments]].map(x=>`<div class="stat"><small>${esc(x[0])}</small><strong>${x[1]}</strong></div>`).join('')}
+  async function render(){panel.innerHTML='<div class="empty">Loading…</div>';try{const d=await api(current);if(current==='employers')renderEmployers(d.employers);else if(current==='seafarers')renderSeafarers(d.seafarers);else if(current==='jobs')renderJobs(d.jobs);else if(current==='applications')renderApplications(d.applications);else if(current==='subscriptions')renderSubscriptions(d.subscriptions);else if(current==='payments')renderPayments(d.payments);else renderMasters(d);}catch(e){panel.innerHTML=`<div class="empty">${esc(e.message)}</div>`}}
+  const tableWrap=(head,rows)=>`<div class="table-wrap"><table><thead><tr>${head.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')||'<tr><td colspan="20"><div class="empty">No records found.</div></td></tr>'}</tbody></table></div>`;
+  function renderEmployers(list){panel.innerHTML=tableWrap(['Company','Contact','RPSL','Verification','Account','Action'],list.map(c=>{const p=c.profile||{};return `<tr><td><b>${esc(c.company_name)}</b><br><small>${esc(c.email||p.email||'')}</small></td><td>${esc(c.contact_person)}<br>${esc(c.mobile||p.mobile||'')}</td><td>${esc(c.rpsl_number||'—')}</td><td>${pill(c.verified?'Verified':c.rpsl_status||'Pending')}</td><td>${pill(c.verified?(p.is_active?'Active':'Suspended'):(c.payment_received?'Payment received':'Pending'))}</td><td>${c.verified?`<button class="action reject" data-act="reject" data-id="${c.id}">Revoke</button>`:`<button class="action approve" data-act="approve" data-id="${c.id}">Verify</button>`} ${p.is_active?`<button class="action" data-act="suspend" data-user="${p.id}">Suspend</button>`:`<button class="action approve" data-act="activate" data-user="${p.id}">Activate</button>`}</td></tr>`}));}
+  function renderSeafarers(list){panel.innerHTML=tableWrap(['Seafarer','Contact','Nationality','Sea Experience','Plan','Subscription','Visibility','Account'],list.map(x=>{const sub=x.subscription||null;const plan=sub?.plan==='seafarer_pro'?'Seafarer Pro':'Seafarer Free';const subStatus=sub?.status||'free';return `<tr><td><b>${esc(x.full_name||'—')}</b><br><small>${esc(x.email)}</small></td><td>${esc(x.mobile||'—')}</td><td>${esc(x.seafarer?.nationality||'—')}</td><td>${Number(x.seafarer?.total_sea_months||0)} months</td><td>${pill(plan)}</td><td>${pill(subStatus)}</td><td>${pill(x.seafarer?.visibility||'—')}</td><td>${pill(x.is_active?'Active':'Suspended')}</td></tr>`}));}
+  function renderJobs(list){panel.innerHTML=tableWrap(['Job','Company','Rank','Vessel','Sector','Status','Approval','Action'],list.map(x=>`<tr><td><b>${esc(x.title)}</b><br><small>${esc(x.location||'')}</small></td><td>${esc(x.company_id)}</td><td>${esc(x.rank?.name||x.rank_id||'—')}</td><td>${esc(x.vessel_type?.name||x.vessel_type_id||'—')}</td><td>${esc(x.sector?.name||x.sector_id||'—')}</td><td>${pill(x.status)}</td><td>${pill(x.approved?'Approved':'Pending')}</td><td>${x.approved?`<button class="action reject" data-job="${x.id}" data-status="rejected">Reject</button>`:`<button class="action approve" data-job="${x.id}" data-status="published">Approve & Publish</button>`}</td></tr>`));}
+  function renderApplications(list){panel.innerHTML=tableWrap(['Application','Job','Seafarer','Status','Created','Action'],list.map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.job_id)}</td><td>${esc(x.seafarer_id)}</td><td>${pill(x.status)}</td><td>${esc(x.created_at)}</td><td><select class="app-status" data-id="${x.id}"><option>Under Review</option><option>Shortlisted</option><option>Interview</option><option>Selected</option><option>Rejected</option><option>Joining Process</option></select><button class="action" data-appsave="${x.id}">Update</button></td></tr>`));}
+  function renderSubscriptions(list){panel.innerHTML=tableWrap(['Seafarer / User','Plan','Amount','Status','Order','Created','Action'],list.map(x=>{const p=x.profile||{};const name=p.full_name||'Unknown user';const email=p.email||'';const verify=x.plan==='seafarer_pro'&&x.status==='pending'?`<button class="action approve" data-subverify="${x.id}">Verify Payment</button>`:'';return `<tr><td><b>${esc(name)}</b><br><small>${esc(email)}</small><br><small>${esc(x.user_id)}</small></td><td>${esc(x.plan)}</td><td>${esc(x.currency||'INR')} ${esc(x.amount)}</td><td>${pill(x.status)}</td><td>${esc(x.provider_order_id||'—')}</td><td>${esc(x.created_at)}</td><td>${verify} <select class="sub-status" data-id="${x.id}"><option ${x.status==='active'?'selected':''}>active</option><option ${x.status==='suspended'?'selected':''}>suspended</option><option ${x.status==='expired'?'selected':''}>expired</option><option ${x.status==='cancelled'?'selected':''}>cancelled</option><option ${x.status==='pending'?'selected':''}>pending</option></select><button class="action" data-subsave="${x.id}">Update</button></td></tr>`}));}
+  function renderPayments(list){panel.innerHTML=tableWrap(['Provider','Event','Order ID','Created','Event ID'],list.map(x=>`<tr><td>${esc(x.provider)}</td><td>${pill(x.event_type)}</td><td>${esc(x.order_id||'—')}</td><td>${esc(x.created_at)}</td><td>${esc(x.event_id||'—')}</td></tr>`));}
+  function renderMasters(d){const make=(type,title,items)=>`<div class="master-card"><h3>${title}</h3><div class="master-add"><input id="new-${type}" placeholder="Add ${title.slice(0,-1)}"><button class="action approve" data-masteradd="${type}">Add</button></div>${items.map(x=>`<div class="master-item"><span>${esc(x.name)}</span><button class="action" data-mastertoggle="${type}" data-id="${x.id}" data-active="${x.active}">${x.active?'Disable':'Enable'}</button></div>`).join('')}</div>`;panel.innerHTML=`<div class="master-grid">${make('rank','Ranks',d.ranks)}${make('vessel_type','Vessel Types',d.vessel_types)}${make('sector','Sectors',d.sectors)}</div>`}
+  async function start(){loginView.hidden=true;dash.hidden=false;$('#admin-actions').innerHTML='<button class="outline" id="logout">Logout</button>';$('#logout').onclick=()=>{sessionStorage.removeItem('sc_admin_token');location.reload()};await loadStats();await render();}
+  $('#admin-login').addEventListener('submit',async e=>{e.preventDefault();$('#login-error').textContent='';try{if(!turnstileToken)throw Error('Please complete the security verification.');const email=$('#admin-email').value.trim().toLowerCase(),password=$('#admin-password').value;const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',role:'admin',email,password,turnstileToken})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Admin login failed.');token=d.access_token;sessionStorage.setItem('sc_admin_token',token);await start()}catch(e){$('#login-error').textContent=e.message}});
+  $('#tabs').addEventListener('click',async e=>{const b=e.target.closest('button[data-tab]');if(!b)return;current=b.dataset.tab;$$('.tabs button').forEach(x=>x.classList.toggle('active',x===b));await render()});
+  $('#refresh').addEventListener('click',async()=>{await loadStats();await render()});
+  panel.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;try{if(b.dataset.act==='approve')await api('verifyEmployer',{company_id:b.dataset.id});else if(b.dataset.act==='reject')await api('rejectEmployer',{company_id:b.dataset.id});else if(b.dataset.act==='suspend')await api('suspendEmployer',{user_id:b.dataset.user});else if(b.dataset.act==='activate')await api('activateEmployer',{user_id:b.dataset.user});else if(b.dataset.job)await api('jobStatus',{job_id:b.dataset.job,status:b.dataset.status});else if(b.dataset.appsave){const sel=$(`.app-status[data-id="${b.dataset.appsave}"]`);await api('applicationStatus',{application_id:b.dataset.appsave,status:sel.value})}else if(b.dataset.subverify){const d=await api('reconcileSubscription',{subscription_id:b.dataset.subverify});if(d.verified)alert('Payment verified. Seafarer Pro is now Active.');else alert('Cashfree shows no successful payment for this order yet.');}else if(b.dataset.subsave){const sel=$(`.sub-status[data-id="${b.dataset.subsave}"]`);await api('subscriptionStatus',{subscription_id:b.dataset.subsave,status:sel.value})}else if(b.dataset.masteradd){const input=$(`#new-${b.dataset.masteradd}`);if(!input.value.trim())return;await api('masterSave',{type:b.dataset.masteradd,name:input.value.trim()})}else if(b.dataset.mastertoggle)await api('masterToggle',{type:b.dataset.mastertoggle,id:b.dataset.id,active:b.dataset.active!=='true'});await loadStats();await render()}catch(e){alert(e.message)}});
+  (async()=>{try{const c=await fetch('/api/config').then(r=>r.json()); if(c.turnstileSiteKey && window.turnstile){turnstileWidget=window.turnstile.render('#admin-turnstile',{sitekey:c.turnstileSiteKey,callback:t=>turnstileToken=t,'expired-callback':()=>turnstileToken='','error-callback':()=>turnstileToken=''});}}catch(e){}})();
+  if(token){start().catch(()=>{sessionStorage.removeItem('sc_admin_token');token=''})}
+})();
