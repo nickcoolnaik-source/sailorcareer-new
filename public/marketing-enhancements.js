@@ -79,59 +79,10 @@
   const sectors=['Merchant Shipping','Offshore / Oil & Gas','Cruise & Passenger','Yachting','Fishing','Research','Marine Services','Ship Management'];
   const locations=['Singapore','Dubai','Abu Dhabi','Doha','Mumbai','Chennai','Kochi','Colombo','Manila','Rotterdam','Limassol','Jeddah','Hong Kong','Athens','London'];
   const contracts=['3 months','4 months','5 months','6 months','8 months','9 months'];
-
-  // 2026 indicative market ranges, USD/month. These are rank-level guides,
-  // not guaranteed offers. Actual pay varies by vessel, flag, company, trade,
-  // experience, CoC/certificates and contract/collective agreement.
-  // Benchmarked against current 2026 published vacancy examples and the
-  // 2026 ITF/ILO wage scale; obscure/specialist roles use broader indicative ranges.
-  const salaryByRank={
-    'Master/Captain':'USD 8,500–16,000+',
-    'Chief Officer':'USD 5,500–10,000',
-    '2nd Officer':'USD 3,100–6,500',
-    '3rd Officer':'USD 2,750–5,000',
-    'Deck Cadet':'USD 500–1,500',
-    'Bosun':'USD 1,800–3,500',
-    'AB':'USD 1,500–3,200',
-    'OS':'USD 1,000–2,200',
-    'Pumpman':'USD 2,000–4,000',
-    'Chief Engineer':'USD 6,500–14,500+',
-    '2nd Engineer':'USD 4,400–8,500',
-    '3rd Engineer':'USD 2,500–5,500',
-    '4th Engineer':'USD 2,200–4,500',
-    'Engine Cadet':'USD 500–1,500',
-    'Motorman/Oiler':'USD 1,400–3,200',
-    'Fitter':'USD 1,800–4,000',
-    'ETO':'USD 3,100–7,500',
-    'ETR':'USD 2,500–5,000',
-    'Electrician':'USD 2,500–6,000',
-    'Reefer Engineer':'USD 3,500–6,500',
-    'Chief Cook':'USD 1,800–3,500',
-    '2nd Cook':'USD 1,400–2,700',
-    'Steward':'USD 1,000–2,200',
-    'Messman':'USD 1,000–2,200',
-    'Chief Steward':'USD 1,800–3,500',
-    'DPO/DP Operator':'USD 5,500–10,500',
-    'Rig Manager':'USD 8,000–18,000+',
-    'Toolpusher':'USD 5,000–12,000',
-    'Driller':'USD 3,500–10,000',
-    'Assistant Driller':'USD 2,000–4,500',
-    'Derrickman':'USD 1,800–5,000',
-    'Roustabout':'USD 1,200–3,500',
-    'Crane Operator':'USD 2,500–7,000',
-    'Barge Engineer':'USD 5,000–10,000',
-    'Fishing Master':'USD 3,500–8,000',
-    'Skipper':'USD 3,000–8,000',
-    'Deckhand':'USD 1,000–2,500',
-    'Marine Surveyor':'USD 4,500–8,500',
-    'Marine Superintendent':'USD 5,000–9,000',
-    'Technical Superintendent':'USD 7,000–15,000',
-    'HSQE Officer':'USD 4,000–8,000'
-  };
-
+  const salaries=['USD 700','USD 1,200','USD 2,100','USD 3,400','USD 4,900','USD 6,200','USD 7,500','USD 8,900','USD 10,500'];
   const vacancies=Array.from({length:100},(_,i)=>{
     const rank=ranks[i%ranks.length], vessel=vessels[(i*3)%vessels.length], sector=sectors[(i*5)%sectors.length];
-    return {id:'public-'+(i+1),rank,vessel,sector,location:locations[(i*7)%locations.length],contract:contracts[i%contracts.length],salary:salaryByRank[rank]||'Market rate — verify with employer',requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'};
+    return {id:'public-'+(i+1),rank,vessel,sector,location:locations[(i*7)%locations.length],contract:contracts[i%contracts.length],salary:salaries[(i*2)%salaries.length],requirements:'Valid CoC / STCW • Relevant sea service • Medical fitness • Ready to join'};
   });
 
   // Render only a small number of public vacancies at first.
@@ -155,7 +106,7 @@
       <div class="job-top"><span class="count">${esc(j.sector)}</span><span>✓ Verified access</span></div>
       <h3>${esc(j.rank)}</h3>
       <div class="company public-no-company">Employer details available after account sign-in</div>
-      <div class="job-meta"><div>Vessel<b>${esc(j.vessel)}</b></div><div>Location<b>${esc(j.location)}</b></div><div>Contract<b>${esc(j.contract)}</b></div><div>Market salary<b>${esc(j.salary)}</b></div></div>
+      <div class="job-meta"><div>Vessel<b>${esc(j.vessel)}</b></div><div>Location<b>${esc(j.location)}</b></div><div>Contract<b>${esc(j.contract)}</b></div><div>Salary<b>${esc(j.salary)}</b></div></div>
       <p class="requirements">${esc(j.requirements)}</p>
       <div class="job-actions"><button class="btn outline public-view" data-job="${esc(j.id)}">View Details</button><button class="btn primary public-apply" data-job="${esc(j.id)}">Apply Now</button></div>
     </article>`).join('');
@@ -174,16 +125,6 @@
   }
 
   renderPublic(vacancies);
-
-  // Salary methodology note shown once above the vacancy grid.
-  const jobSection=document.querySelector('.jobs');
-  if(jobSection && !document.querySelector('.salary-market-note')){
-    const note=document.createElement('div');
-    note.className='salary-market-note';
-    note.innerHTML='<strong>2026 market salary guide:</strong> Indicative monthly USD ranges. Actual offers vary by vessel type, flag, company, experience, certificates and contract. Figures are a guide, not a guaranteed offer.';
-    const grid=document.querySelector('#jobGrid');
-    if(grid) grid.insertAdjacentElement('beforebegin',note);
-  }
 
   document.addEventListener('click',e=>{
     const moreBtn=e.target.closest('#publicViewMoreBtn');
@@ -208,16 +149,37 @@
     });
   }
 
-  document.addEventListener('click',e=>{
+  document.addEventListener('click',async e=>{
     const b=e.target.closest('.public-apply,.public-view');
     if(!b)return;
     const job=vacancies.find(x=>x.id===b.dataset.job);
-    if(window.openAuth){
-      window.openAuth('seafarerRegister');
-      setTimeout(()=>window.__scToast&&window.__scToast('Create your free maritime profile to continue. The vacancy details will remain available after sign-in.'),250);
-    }else{
-      window.location.hash='seafarer';
+    if(!job)return;
+    let auth=null;
+    try{auth=JSON.parse(sessionStorage.getItem('sc_auth')||'null')}catch{}
+    // Guest: use the normal SailorCareer registration/login flow.
+    if(!auth?.access_token){
+      if(window.openAuth)window.openAuth('seafarerRegister');
+      return;
     }
+    if(auth.role!=='seafarer'){
+      if(window.__scToast)window.__scToast('Please use a Seafarer account for vacancy access.');
+      return;
+    }
+    try{
+      const r=await fetch('/api/subscription-status',{headers:{Authorization:`Bearer ${auth.access_token}`},cache:'no-store'});
+      const d=await r.json();
+      if(!r.ok)throw Error(d.error||'Unable to verify subscription');
+      if(!d.isPro){
+        location.href='/dashboard?upgrade=1';
+        return;
+      }
+      // Pro users can see the public vacancy details. These generated marketing vacancies
+      // are not database job records, so application submission is not falsely claimed here.
+      const isApply=b.classList.contains('public-apply');
+      if(window.openModal){
+        window.openModal(`<div class="kicker"><span></span> VERIFIED OPPORTUNITY</div><h2>${job.rank}</h2><p><b>Employer details available after application access</b> • ${job.location}</p><div class="dash-grid"><div class="dash-card">Vessel<strong>${job.vessel}</strong></div><div class="dash-card">Contract<strong>${job.contract}</strong></div><div class="dash-card">Market salary<strong>${job.salary}</strong></div></div><h3>${isApply?'Application access':'Vacancy details'}</h3><p>${job.requirements}</p><p class="form-note">${isApply?'This promotional vacancy card is a sample listing. Live employer applications are enabled when the vacancy is connected to the Jobs database.':'You are signed in with Seafarer Pro. Live employer-linked vacancies can be applied to from the Jobs database.'}</p>`);
+      }
+    }catch(err){if(window.__scToast)window.__scToast(err.message)}
   });
 
   // Add profile-growth message to the top announcement bar.
