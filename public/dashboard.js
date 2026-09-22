@@ -1,40 +1,1216 @@
-const toast=m=>{const t=document.querySelector('#toast');t.textContent=m;t.style.display='block';clearTimeout(window.__t);window.__t=setTimeout(()=>t.style.display='none',3500)};
-const auth=(()=>{try{return JSON.parse(sessionStorage.getItem('sc_auth')||'null')}catch{return null}})();
-if(!auth?.access_token||auth.role!=='seafarer')location.replace('/');
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-$('#dashLogout').onclick=()=>{sessionStorage.removeItem('sc_auth');location.replace('/')};
-$$('.dash-nav button').forEach(b=>b.onclick=()=>{$$('.dash-nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');$$('.tab').forEach(x=>x.classList.remove('active'));$('#tab-'+b.dataset.tab).classList.add('active')});
+const toast=m=>{
+  const t=document.querySelector('#toast');
+  t.textContent=m;
+  t.style.display='block';
+  clearTimeout(window.__t);
+  window.__t=setTimeout(()=>t.style.display='none',3500)
+};
+
+const auth=(()=>{
+  try{
+    return JSON.parse(sessionStorage.getItem('sc_auth')||'null')
+  }catch{
+    return null
+  }
+})();
+
+if(!auth?.access_token||auth.role!=='seafarer'){
+  location.replace('/')
+}
+
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+
+$('#dashLogout').onclick=()=>{
+  sessionStorage.removeItem('sc_auth');
+  location.replace('/')
+};
+
+$$('.dash-nav button').forEach(b=>b.onclick=()=>{
+  $$('.dash-nav button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+
+  $$('.tab').forEach(x=>x.classList.remove('active'));
+
+  $('#tab-'+b.dataset.tab).classList.add('active')
+});
+
 const split=v=>Array.isArray(v)?v.join(', '):(v||'');
-function completion(p,s){const vals=[p.full_name,p.mobile,s?.dob,s?.nationality,s?.total_sea_months>0,s?.rank_experience_months>0,s?.joining_availability,s?.professional_summary,s?.preferred_vessels?.length,s?.preferred_sectors?.length,s?.certificates?.length,s?.skills?.length];return Math.round(vals.filter(Boolean).length/vals.length*100)}
-function setForm(p,s){$('#full_name').value=p?.full_name||'';$('#email').value=p?.email||'';$('#mobile').value=p?.mobile||'';$('#dob').value=s?.dob||'';$('#nationality').value=s?.nationality||'';$('#total_sea_months').value=s?.total_sea_months||0;$('#rank_experience_months').value=s?.rank_experience_months||0;$('#joining_availability').value=s?.joining_availability||'';$('#professional_summary').value=s?.professional_summary||'';$('#preferred_vessels').value=split(s?.preferred_vessels);$('#preferred_sectors').value=split(s?.preferred_sectors);$('#preferred_locations').value=split(s?.preferred_locations);$('#skills').value=split(s?.skills);$('#certificates').value=split(s?.certificates);$('#visibility').value=s?.visibility||'employer_limited';$('#privacyValue').textContent=$('#visibility').selectedOptions[0].textContent}
+
+function completion(p,s){
+  const vals=[
+    p.full_name,
+    p.mobile,
+    s?.dob,
+    s?.nationality,
+    s?.total_sea_months>0,
+    s?.rank_experience_months>0,
+    s?.joining_availability,
+    s?.professional_summary,
+    s?.preferred_vessels?.length,
+    s?.preferred_sectors?.length,
+    s?.certificates?.length,
+    s?.skills?.length
+  ];
+
+  return Math.round(
+    vals.filter(Boolean).length/vals.length*100
+  )
+}
+
+function setForm(p,s){
+
+  $('#full_name').value=p?.full_name||'';
+  $('#email').value=p?.email||'';
+  $('#mobile').value=p?.mobile||'';
+
+  $('#dob').value=s?.dob||'';
+  $('#nationality').value=s?.nationality||'';
+
+  $('#total_sea_months').value=
+    s?.total_sea_months||0;
+
+  $('#rank_experience_months').value=
+    s?.rank_experience_months||0;
+
+  $('#joining_availability').value=
+    s?.joining_availability||'';
+
+  $('#professional_summary').value=
+    s?.professional_summary||'';
+
+  $('#preferred_vessels').value=
+    split(s?.preferred_vessels);
+
+  $('#preferred_sectors').value=
+    split(s?.preferred_sectors);
+
+  $('#preferred_locations').value=
+    split(s?.preferred_locations);
+
+  $('#skills').value=
+    split(s?.skills);
+
+  $('#certificates').value=
+    split(s?.certificates);
+
+  $('#visibility').value=
+    s?.visibility||'employer_limited';
+
+  $('#privacyValue').textContent=
+    $('#visibility').selectedOptions[0].textContent
+}
+
 let isPro=false;
+
 function setProUI(){
- $('#planTag').textContent=isPro?'PRO':'FREE'; $('#planName').textContent=isPro?'Seafarer Pro':'Seafarer Free'; $('#planStatus').textContent=isPro?'Active • ₹499/year':'Active account';
- $('#upgradePro').style.display=isPro?'none':'';
- ['cv','applications','alerts','privacy','documents'].forEach(k=>{const el=$('#'+k+'Lock');if(el)el.style.display=isPro?'none':''});
- $('#cvContent').style.display=isPro?'':'none';
- $('#applicationsList').style.display=isPro?'':'none';
- $('#documentsContent').style.display=isPro?'':'none';
- if(isPro){loadApplications();loadDocuments()}
+
+  $('#planTag').textContent=
+    isPro?'PRO':'FREE';
+
+  $('#planName').textContent=
+    isPro?'Seafarer Pro':'Seafarer Free';
+
+  $('#planStatus').textContent=
+    isPro
+    ?'Active • ₹499/year'
+    :'Active account';
+
+  $('#upgradePro').style.display=
+    isPro?'none':'';
+
+  [
+    'cv',
+    'applications',
+    'alerts',
+    'privacy',
+    'documents'
+  ].forEach(k=>{
+    const el=$('#'+k+'Lock');
+
+    if(el){
+      el.style.display=
+        isPro?'none':''
+    }
+  });
+
+  $('#cvContent').style.display=
+    isPro?'':'none';
+
+  $('#applicationsList').style.display=
+    isPro?'':'none';
+
+  $('#documentsContent').style.display=
+    isPro?'':'none';
+
+  if(isPro){
+    loadApplications();
+    loadDocuments()
+  }
 }
+
+
+/* =========================================================
+   CASHFREE PRO PAYMENT
+   ========================================================= */
+
 async function startProPayment(){
- try{const r=await fetch('/api/cashfree-create-order',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify({plan:'seafarer_pro'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Payment setup unavailable');if(window.Cashfree&&d.payment_session_id){Cashfree({mode:d.mode==='production'?'production':'sandbox'}).checkout({paymentSessionId:d.payment_session_id,redirectTarget:'_self'});return}toast('Cashfree payment session created.');}catch(e){toast(e.message)}
+
+  try{
+
+    const r=await fetch(
+      '/api/cashfree-create-order',
+      {
+        method:'POST',
+
+        headers:{
+          'Content-Type':
+            'application/json',
+
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        body:JSON.stringify({
+          plan:'seafarer_pro'
+        })
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Payment setup unavailable'
+      );
+    }
+
+    if(
+      window.Cashfree &&
+      d.payment_session_id
+    ){
+
+      const cashfree=Cashfree({
+        mode:
+          d.mode==='production'
+          ?'production'
+          :'sandbox'
+      });
+
+      cashfree.checkout({
+        paymentSessionId:
+          d.payment_session_id,
+
+        redirectTarget:'_self'
+      });
+
+      return;
+    }
+
+    toast(
+      'Cashfree payment session created.'
+    );
+
+  }catch(e){
+
+    toast(e.message)
+  }
 }
-$$('[data-upgrade]').forEach(b=>b.onclick=startProPayment);$('#upgradePro').onclick=startProPayment;
-async function loadSubscription(){try{const qs=new URLSearchParams(location.search);const orderId=qs.get('order_id');if(orderId||qs.get('payment')==='return'){const rr=await fetch('/api/subscription-status',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify({order_id:orderId||null})});if(rr.ok){const rd=await rr.json();if(rd.isPro)toast('Payment verified. Seafarer Pro is now active.');}}const r=await fetch('/api/subscription-status',{headers:{Authorization:`Bearer ${auth.access_token}`},cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load subscription');isPro=!!d.isPro;setProUI()}catch(e){toast(e.message)}}
-async function load(){try{const r=await fetch('/api/profile',{headers:{Authorization:`Bearer ${auth.access_token}`},cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load profile');setForm(d.profile,d.seafarer);$('#welcomeName').textContent=d.profile.full_name||d.profile.email;const c=completion(d.profile,d.seafarer);$('#completion').textContent=c+'%';$('#progressBar').style.width=c+'%';$('#applicationCount').textContent='0';$('#savedCount').textContent='0'}catch(e){toast(e.message)}}
-$('#saveProfile').onclick=async()=>{const csv=id=>$('#'+id).value.split(',').map(x=>x.trim()).filter(Boolean);const body={full_name:$('#full_name').value,mobile:$('#mobile').value,dob:$('#dob').value||null,nationality:$('#nationality').value,total_sea_months:$('#total_sea_months').value,rank_experience_months:$('#rank_experience_months').value,joining_availability:$('#joining_availability').value||null,professional_summary:$('#professional_summary').value,preferred_vessels:csv('preferred_vessels'),preferred_sectors:csv('preferred_sectors'),preferred_locations:csv('preferred_locations'),skills:csv('skills'),certificates:csv('certificates'),visibility:$('#visibility').value};const b=$('#saveProfile');b.disabled=true;b.textContent='Saving…';try{const r=await fetch('/api/profile',{method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to save profile');auth.full_name=d.profile.full_name;sessionStorage.setItem('sc_auth',JSON.stringify(auth));const c=completion(d.profile,d.seafarer);$('#completion').textContent=c+'%';$('#progressBar').style.width=c+'%';$('#welcomeName').textContent=d.profile.full_name;$('#privacyValue').textContent=$('#visibility').selectedOptions[0].textContent;toast('Profile saved successfully.')}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Save changes'}};
-$('#visibility').onchange=()=>$('#privacyValue').textContent=$('#visibility').selectedOptions[0].textContent;
-async function loadApplications(){const box=$('#applicationsList');if(!box||!isPro)return;try{const r=await fetch('/api/applications',{headers:{Authorization:`Bearer ${auth.access_token}`},cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load applications');const apps=d.applications||[];$('#applicationCount').textContent=apps.length;box.innerHTML=apps.length?apps.map(a=>`<div class="application-item"><div><h3>Application</h3><p>Job ID: ${a.job_id}</p><p>Submitted: ${new Date(a.created_at).toLocaleDateString()}</p></div><div><span class="status-pill">${a.status}</span>${a.status!=='Withdrawn'?` <button class="btn outline" data-withdraw="${a.id}">Withdraw</button>`:''}</div></div>`).join(''):'<div class="list-empty">No applications yet. Find a vacancy and apply from the Jobs page.</div>';}catch(e){box.innerHTML=`<div class="list-empty">${e.message}</div>`}$$('[data-withdraw]').forEach(b=>b.onclick=()=>withdrawApplication(b.dataset.withdraw))}
-async function withdrawApplication(id){if(!confirm('Withdraw this application?'))return;try{const r=await fetch('/api/applications',{method:'PATCH',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify({id,status:'Withdrawn'})});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to withdraw');toast('Application withdrawn.');loadApplications()}catch(e){toast(e.message)}}
+
+
+/* =========================================================
+   UPGRADE BUTTONS
+   ========================================================= */
+
+$$('[data-upgrade]').forEach(
+  b=>b.onclick=startProPayment
+);
+
+$('#upgradePro').onclick=startProPayment;
+
+
+/* =========================================================
+   SUBSCRIPTION
+   ========================================================= */
+
+async function loadSubscription(){
+
+  try{
+
+    const qs=
+      new URLSearchParams(location.search);
+
+    const orderId=
+      qs.get('order_id');
+
+    const paymentReturn=
+      qs.get('payment')==='return';
+
+
+    /*
+      Cashfree returned the user.
+      Reconcile the order with the server.
+    */
+
+    if(orderId||paymentReturn){
+
+      const rr=await fetch(
+        '/api/subscription-status',
+        {
+          method:'POST',
+
+          headers:{
+            'Content-Type':
+              'application/json',
+
+            Authorization:
+              `Bearer ${auth.access_token}`
+          },
+
+          body:JSON.stringify({
+            order_id:orderId||null
+          })
+        }
+      );
+
+      if(rr.ok){
+
+        const rd=await rr.json();
+
+        if(rd.isPro){
+
+          toast(
+            'Payment verified. Seafarer Pro is now active.'
+          );
+        }
+      }
+
+    }
+
+
+    const r=await fetch(
+      '/api/subscription-status',
+      {
+        headers:{
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        cache:'no-store'
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to load subscription'
+      );
+    }
+
+    isPro=!!d.isPro;
+
+    setProUI();
+
+
+    /*
+      IMPORTANT:
+      When the user came from
+      View Details / Apply Now as a
+      Free Seafarer, app.js sends them to:
+
+      /dashboard?upgrade=1
+
+      Automatically open Cashfree checkout.
+    */
+
+    const upgrade=
+      qs.get('upgrade')==='1';
+
+    if(upgrade&&!isPro){
+
+      history.replaceState(
+        {},
+        document.title,
+        '/dashboard'
+      );
+
+      setTimeout(()=>{
+        startProPayment();
+      },500);
+    }
+
+
+  }catch(e){
+
+    toast(e.message)
+  }
+}
+
+
+/* =========================================================
+   PROFILE
+   ========================================================= */
+
+async function load(){
+
+  try{
+
+    const r=await fetch(
+      '/api/profile',
+      {
+        headers:{
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        cache:'no-store'
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to load profile'
+      );
+    }
+
+    setForm(
+      d.profile,
+      d.seafarer
+    );
+
+    $('#welcomeName').textContent=
+      d.profile.full_name||
+      d.profile.email;
+
+    const c=
+      completion(
+        d.profile,
+        d.seafarer
+      );
+
+    $('#completion').textContent=
+      c+'%';
+
+    $('#progressBar').style.width=
+      c+'%';
+
+    $('#applicationCount').textContent=
+      '0';
+
+    $('#savedCount').textContent=
+      '0';
+
+  }catch(e){
+
+    toast(e.message)
+  }
+}
+
+
+/* =========================================================
+   SAVE PROFILE
+   ========================================================= */
+
+$('#saveProfile').onclick=async()=>{
+
+  const csv=id=>
+    $('#'+id)
+      .value
+      .split(',')
+      .map(x=>x.trim())
+      .filter(Boolean);
+
+  const body={
+
+    full_name:
+      $('#full_name').value,
+
+    mobile:
+      $('#mobile').value,
+
+    dob:
+      $('#dob').value||null,
+
+    nationality:
+      $('#nationality').value,
+
+    total_sea_months:
+      $('#total_sea_months').value,
+
+    rank_experience_months:
+      $('#rank_experience_months').value,
+
+    joining_availability:
+      $('#joining_availability').value||null,
+
+    professional_summary:
+      $('#professional_summary').value,
+
+    preferred_vessels:
+      csv('preferred_vessels'),
+
+    preferred_sectors:
+      csv('preferred_sectors'),
+
+    preferred_locations:
+      csv('preferred_locations'),
+
+    skills:
+      csv('skills'),
+
+    certificates:
+      csv('certificates'),
+
+    visibility:
+      $('#visibility').value
+  };
+
+  const b=$('#saveProfile');
+
+  b.disabled=true;
+  b.textContent='Saving…';
+
+  try{
+
+    const r=await fetch(
+      '/api/profile',
+      {
+        method:'PUT',
+
+        headers:{
+          'Content-Type':
+            'application/json',
+
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        body:JSON.stringify(body)
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to save profile'
+      );
+    }
+
+    auth.full_name=
+      d.profile.full_name;
+
+    sessionStorage.setItem(
+      'sc_auth',
+      JSON.stringify(auth)
+    );
+
+    const c=
+      completion(
+        d.profile,
+        d.seafarer
+      );
+
+    $('#completion').textContent=
+      c+'%';
+
+    $('#progressBar').style.width=
+      c+'%';
+
+    $('#welcomeName').textContent=
+      d.profile.full_name;
+
+    $('#privacyValue').textContent=
+      $('#visibility')
+        .selectedOptions[0]
+        .textContent;
+
+    toast(
+      'Profile saved successfully.'
+    );
+
+  }catch(e){
+
+    toast(e.message)
+
+  }finally{
+
+    b.disabled=false;
+    b.textContent='Save changes'
+  }
+};
+
+$('#visibility').onchange=()=>{
+  $('#privacyValue').textContent=
+    $('#visibility')
+      .selectedOptions[0]
+      .textContent
+};
+
+
+/* =========================================================
+   APPLICATIONS
+   ========================================================= */
+
+async function loadApplications(){
+
+  const box=$('#applicationsList');
+
+  if(!box||!isPro)return;
+
+  try{
+
+    const r=await fetch(
+      '/api/applications',
+      {
+        headers:{
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        cache:'no-store'
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to load applications'
+      );
+    }
+
+    const apps=
+      d.applications||[];
+
+    $('#applicationCount').textContent=
+      apps.length;
+
+    box.innerHTML=
+      apps.length
+
+      ?apps.map(a=>`
+
+        <div class="application-item">
+
+          <div>
+
+            <h3>Application</h3>
+
+            <p>
+              Job ID: ${a.job_id}
+            </p>
+
+            <p>
+              Submitted:
+              ${new Date(
+                a.created_at
+              ).toLocaleDateString()}
+            </p>
+
+          </div>
+
+          <div>
+
+            <span class="status-pill">
+              ${a.status}
+            </span>
+
+            ${
+              a.status!=='Withdrawn'
+              ?`
+                <button
+                  class="btn outline"
+                  data-withdraw="${a.id}">
+                  Withdraw
+                </button>
+              `
+              :''
+            }
+
+          </div>
+
+        </div>
+
+      `).join('')
+
+      :`
+        <div class="list-empty">
+          No applications yet.
+          Find a vacancy and apply from
+          the Jobs page.
+        </div>
+      `;
+
+    $$('[data-withdraw]')
+      .forEach(
+        b=>b.onclick=()=>withdrawApplication(
+          b.dataset.withdraw
+        )
+      );
+
+  }catch(e){
+
+    box.innerHTML=
+      `<div class="list-empty">
+        ${e.message}
+      </div>`
+  }
+}
+
+
+async function withdrawApplication(id){
+
+  if(!confirm(
+    'Withdraw this application?'
+  ))return;
+
+  try{
+
+    const r=await fetch(
+      '/api/applications',
+      {
+        method:'PATCH',
+
+        headers:{
+          'Content-Type':
+            'application/json',
+
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        body:JSON.stringify({
+          id,
+          status:'Withdrawn'
+        })
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to withdraw'
+      );
+    }
+
+    toast(
+      'Application withdrawn.'
+    );
+
+    loadApplications();
+
+  }catch(e){
+
+    toast(e.message)
+  }
+}
+
+
+/* =========================================================
+   DOCUMENT UPLOAD
+   ========================================================= */
+
 async function uploadBase64(file,kind){
- const reader=new FileReader();const data=await new Promise((resolve,reject)=>{reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file)});
- const r=await fetch('/api/documents',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${auth.access_token}`},body:JSON.stringify({kind,fileName:file.name,mimeType:file.type,data})});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Upload failed');return d;
+
+  const reader=new FileReader();
+
+  const data=
+    await new Promise(
+      (resolve,reject)=>{
+
+        reader.onload=()=>{
+          resolve(reader.result)
+        };
+
+        reader.onerror=reject;
+
+        reader.readAsDataURL(file);
+      }
+    );
+
+  const r=await fetch(
+    '/api/documents',
+    {
+      method:'POST',
+
+      headers:{
+        'Content-Type':
+          'application/json',
+
+        Authorization:
+          `Bearer ${auth.access_token}`
+      },
+
+      body:JSON.stringify({
+        kind,
+        fileName:file.name,
+        mimeType:file.type,
+        data
+      })
+    }
+  );
+
+  const d=
+    await r.json().catch(
+      ()=>({})
+    );
+
+  if(!r.ok){
+
+    throw Error(
+      d.error||
+      'Upload failed'
+    );
+  }
+
+  return d;
 }
-async function uploadResume(){const input=$('#resumeFile'),file=input?.files?.[0];if(!file){toast('Select your resume first.');return}const b=$('#uploadResume');b.disabled=true;b.textContent='Uploading…';try{await uploadBase64(file,'resume');$('#resumeStatus').textContent='Resume uploaded successfully.';toast('Resume uploaded successfully.')}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Upload Resume'}}
-async function uploadDocument(){if(!isPro){toast('Certificates and documents are available only on Seafarer Pro.');return}const input=[...$$('[data-doc]')].find(x=>x.files?.length);if(!input){toast('Select a certificate or document first.');return}const file=input.files[0],b=$('#uploadDocument');b.disabled=true;b.textContent='Uploading…';try{await uploadBase64(file,input.dataset.doc);input.value='';toast('Document uploaded successfully.');await loadDocuments()}catch(e){toast(e.message)}finally{b.disabled=false;b.textContent='Upload selected document'}}
-async function loadDocuments(){const box=$('#documentList');if(!box||!isPro)return;try{const r=await fetch('/api/documents',{headers:{Authorization:`Bearer ${auth.access_token}`},cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to load documents');const docs=d.documents||[];box.innerHTML=docs.length?docs.map(x=>`<div class="application-item"><div><h3>${x.kind.replace('_',' / ').toUpperCase()}</h3><p>${x.file_name} • ${(Number(x.size_bytes)/1024/1024).toFixed(2)} MB</p><p>Uploaded: ${new Date(x.created_at).toLocaleDateString()}</p></div><button class="btn outline" data-download-doc="${x.id}">Secure view</button></div>`).join(''):'<div class="list-empty">No Pro documents uploaded yet.</div>';$$('[data-download-doc]').forEach(b=>b.onclick=async()=>{try{const r=await fetch('/api/documents?download='+encodeURIComponent(b.dataset.downloadDoc),{headers:{Authorization:`Bearer ${auth.access_token}`}});const d=await r.json();if(!r.ok)throw Error(d.error||'Unable to open document');window.open(d.url,'_blank','noopener')}catch(e){toast(e.message)}})}catch(e){box.innerHTML=`<div class="list-empty">${e.message}</div>`}}
-$('#uploadResume')?.addEventListener('click',uploadResume);$('#uploadDocument')?.addEventListener('click',uploadDocument);
-function generateCV(){if(!isPro){toast('Upgrade to Seafarer Pro to generate your professional CV.');return}const name=$('#full_name').value||'Seafarer',summary=$('#professional_summary').value||'Professional maritime seafarer',skills=$('#skills').value||'—',certs=$('#certificates').value||'—';const w=window.open('','_blank','noopener');if(!w){toast('Please allow pop-ups to generate your CV.');return}w.document.write(`<!doctype html><html><head><title>${name} | SailorCareer CV</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;padding:0 24px;color:#12243a}h1{margin-bottom:4px}h2{border-bottom:1px solid #ccd6e2;padding-bottom:6px;margin-top:28px}.muted{color:#66788d}.box{padding:14px 0}@media print{button{display:none}}</style></head><body><h1>${name}</h1><div class="muted">Maritime Professional CV • Generated by SailorCareer</div><h2>Profile</h2><div class="box">${summary}</div><h2>Experience</h2><div class="box">Total sea experience: ${$('#total_sea_months').value||0} months<br>Rank experience: ${$('#rank_experience_months').value||0} months</div><h2>Skills</h2><div class="box">${skills}</div><h2>Certificates</h2><div class="box">${certs}</div><button onclick="window.print()">Print / Save as PDF</button></body></html>`);w.document.close()}
-$('#generateCv')?.addEventListener('click',generateCV);
-(async()=>{await Promise.all([load(),loadSubscription()]);})();
+
+
+/* =========================================================
+   RESUME
+   ========================================================= */
+
+async function uploadResume(){
+
+  const input=$('#resumeFile');
+  const file=input?.files?.[0];
+
+  if(!file){
+
+    toast(
+      'Select your resume first.'
+    );
+
+    return;
+  }
+
+  const b=$('#uploadResume');
+
+  b.disabled=true;
+  b.textContent='Uploading…';
+
+  try{
+
+    await uploadBase64(
+      file,
+      'resume'
+    );
+
+    $('#resumeStatus').textContent=
+      'Resume uploaded successfully.';
+
+    toast(
+      'Resume uploaded successfully.'
+    );
+
+  }catch(e){
+
+    toast(e.message)
+
+  }finally{
+
+    b.disabled=false;
+    b.textContent='Upload Resume'
+  }
+}
+
+
+/* =========================================================
+   DOCUMENTS
+   ========================================================= */
+
+async function uploadDocument(){
+
+  if(!isPro){
+
+    toast(
+      'Certificates and documents are available only on Seafarer Pro.'
+    );
+
+    return;
+  }
+
+  const input=
+    [...$$('[data-doc]')]
+      .find(x=>x.files?.length);
+
+  if(!input){
+
+    toast(
+      'Select a certificate or document first.'
+    );
+
+    return;
+  }
+
+  const file=input.files[0];
+
+  const b=$('#uploadDocument');
+
+  b.disabled=true;
+  b.textContent='Uploading…';
+
+  try{
+
+    await uploadBase64(
+      file,
+      input.dataset.doc
+    );
+
+    input.value='';
+
+    toast(
+      'Document uploaded successfully.'
+    );
+
+    await loadDocuments();
+
+  }catch(e){
+
+    toast(e.message)
+
+  }finally{
+
+    b.disabled=false;
+    b.textContent=
+      'Upload selected document'
+  }
+}
+
+
+async function loadDocuments(){
+
+  const box=$('#documentList');
+
+  if(!box||!isPro)return;
+
+  try{
+
+    const r=await fetch(
+      '/api/documents',
+      {
+        headers:{
+          Authorization:
+            `Bearer ${auth.access_token}`
+        },
+
+        cache:'no-store'
+      }
+    );
+
+    const d=await r.json();
+
+    if(!r.ok){
+
+      throw Error(
+        d.error||
+        'Unable to load documents'
+      );
+    }
+
+    const docs=
+      d.documents||[];
+
+    box.innerHTML=
+      docs.length
+
+      ?docs.map(x=>`
+
+        <div class="application-item">
+
+          <div>
+
+            <h3>
+              ${x.kind
+                .replace('_',' / ')
+                .toUpperCase()}
+            </h3>
+
+            <p>
+              ${x.file_name}
+              •
+              ${(Number(x.size_bytes)/1024/1024)
+                .toFixed(2)}
+              MB
+            </p>
+
+            <p>
+              Uploaded:
+              ${new Date(
+                x.created_at
+              ).toLocaleDateString()}
+            </p>
+
+          </div>
+
+          <button
+            class="btn outline"
+            data-download-doc="${x.id}">
+            Secure view
+          </button>
+
+        </div>
+
+      `).join('')
+
+      :`
+        <div class="list-empty">
+          No Pro documents uploaded yet.
+        </div>
+      `;
+
+    $$('[data-download-doc]')
+      .forEach(
+        b=>b.onclick=async()=>{
+
+          try{
+
+            const r=await fetch(
+              '/api/documents?download='+
+              encodeURIComponent(
+                b.dataset.downloadDoc
+              ),
+              {
+                headers:{
+                  Authorization:
+                    `Bearer ${auth.access_token}`
+                }
+              }
+            );
+
+            const d=await r.json();
+
+            if(!r.ok){
+
+              throw Error(
+                d.error||
+                'Unable to open document'
+              );
+            }
+
+            window.open(
+              d.url,
+              '_blank',
+              'noopener'
+            );
+
+          }catch(e){
+
+            toast(e.message)
+          }
+        }
+      );
+
+  }catch(e){
+
+    box.innerHTML=
+      `<div class="list-empty">
+        ${e.message}
+      </div>`
+  }
+}
+
+
+/* =========================================================
+   BUTTON EVENTS
+   ========================================================= */
+
+$('#uploadResume')
+  ?.addEventListener(
+    'click',
+    uploadResume
+  );
+
+$('#uploadDocument')
+  ?.addEventListener(
+    'click',
+    uploadDocument
+  );
+
+
+/* =========================================================
+   PROFESSIONAL CV
+   ========================================================= */
+
+function generateCV(){
+
+  if(!isPro){
+
+    toast(
+      'Upgrade to Seafarer Pro to generate your professional CV.'
+    );
+
+    return;
+  }
+
+  const name=
+    $('#full_name').value||
+    'Seafarer';
+
+  const summary=
+    $('#professional_summary').value||
+    'Professional maritime seafarer';
+
+  const skills=
+    $('#skills').value||'—';
+
+  const certs=
+    $('#certificates').value||'—';
+
+  const w=
+    window.open(
+      '',
+      '_blank',
+      'noopener'
+    );
+
+  if(!w){
+
+    toast(
+      'Please allow pop-ups to generate your CV.'
+    );
+
+    return;
+  }
+
+  w.document.write(`
+
+    <!doctype html>
+
+    <html>
+
+    <head>
+
+      <title>
+        ${name} | SailorCareer CV
+      </title>
+
+      <style>
+
+        body{
+          font-family:Arial,sans-serif;
+          max-width:800px;
+          margin:40px auto;
+          padding:0 24px;
+          color:#12243a
+        }
+
+        h1{
+          margin-bottom:4px
+        }
+
+        h2{
+          border-bottom:1px solid #ccd6e2;
+          padding-bottom:6px;
+          margin-top:28px
+        }
+
+        .muted{
+          color:#66788d
+        }
+
+        .box{
+          padding:14px 0
+        }
+
+        @media print{
+          button{
+            display:none
+          }
+        }
+
+      </style>
+
+    </head>
+
+    <body>
+
+      <h1>${name}</h1>
+
+      <div class="muted">
+        Maritime Professional CV •
+        Generated by SailorCareer
+      </div>
+
+      <h2>Profile</h2>
+
+      <div class="box">
+        ${summary}
+      </div>
+
+      <h2>Experience</h2>
+
+      <div class="box">
+        Total sea experience:
+        ${$('#total_sea_months').value||0}
+        months
+
+        <br>
+
+        Rank experience:
+        ${$('#rank_experience_months').value||0}
+        months
+      </div>
+
+      <h2>Skills</h2>
+
+      <div class="box">
+        ${skills}
+      </div>
+
+      <h2>Certificates</h2>
+
+      <div class="box">
+        ${certs}
+      </div>
+
+      <button
+        onclick="window.print()">
+        Print / Save as PDF
+      </button>
+
+    </body>
+
+    </html>
+  `);
+
+  w.document.close()
+}
+
+$('#generateCv')
+  ?.addEventListener(
+    'click',
+    generateCV
+  );
+
+
+/* =========================================================
+   INITIAL LOAD
+   ========================================================= */
+
+(async()=>{
+
+  await Promise.all([
+    load(),
+    loadSubscription()
+  ]);
+
+})();
