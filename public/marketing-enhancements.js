@@ -34,13 +34,13 @@
   const visual=$('.hero-visual');
   if(visual){
     visual.classList.add('hero-banner-visual');
-    visual.innerHTML='<div class="hero-banner-overlay"><div class="hero-banner-badge">⚓ GLOBAL MARITIME NETWORK</div><strong>4,00,000+ maritime profiles</strong><span>Seafarers • Jobs • Career Growth</span></div>';
+    visual.innerHTML='<div class="hero-banner-overlay"><div class="hero-banner-badge">⚓ GLOBAL MARITIME NETWORK</div><strong>2,00,000 maritime profiles</strong><span>Seafarers • Jobs • Career Growth</span></div>';
   }
 
   // Public metric copy
   const metrics=document.querySelectorAll('.metric');
   if(metrics.length>=3){
-    metrics[0].querySelector('b').textContent='4,00,000+';
+    metrics[0].querySelector('b').textContent='2,00,000';
     metrics[0].querySelector('small').textContent='Maritime profiles';
     metrics[1].querySelector('b').textContent='100+';
     metrics[1].querySelector('small').textContent='Live vacancies';
@@ -185,7 +185,7 @@
   // Add profile-growth message to the top announcement bar.
   const announce=document.querySelector('.announce');
   if(announce){
-    announce.innerHTML='<span>⚓ 4,00,000+ maritime profiles</span><span>No placement fee is charged to seafarers.</span>';
+    announce.innerHTML='<span>⚓ 2,00,000 maritime profiles</span><span>No placement fee is charged to seafarers.</span>';
   }
 
   // Small global toast bridge for social buttons.
