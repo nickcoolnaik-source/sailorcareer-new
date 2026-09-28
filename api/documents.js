@@ -2,7 +2,7 @@ const {sb,authUser}=require('./_supabase');
 const SUPABASE_URL=process.env.SUPABASE_URL;
 const SECRET=process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUCKET='seafarer-documents';
-const ALLOWED={resume:['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document'],coc:['application/pdf','image/jpeg','image/png'],stcw:['application/pdf','image/jpeg','image/png'],medical:['application/pdf','image/jpeg','image/png'],passport_cdc:['application/pdf','image/jpeg','image/png'],other:['application/pdf','image/jpeg','image/png']};
+const ALLOWED={   resume:[     'application/pdf',     'application/msword',     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',     'image/jpeg',     'image/png'   ],   coc:['application/pdf','image/jpeg','image/png'],   stcw:['application/pdf','image/jpeg','image/png'],   medical:['application/pdf','image/jpeg','image/png'],   passport_cdc:['application/pdf','image/jpeg','image/png'],   other:['application/pdf','image/jpeg','image/png'] };
 const MAX={resume:5*1024*1024,coc:10*1024*1024,stcw:10*1024*1024,medical:10*1024*1024,passport_cdc:10*1024*1024,other:10*1024*1024};
 async function profileFor(token){const user=await authUser(token),id=encodeURIComponent(user.id);const p=(await sb(`/rest/v1/profiles?id=eq.${id}&select=id,role,is_active`))?.[0];if(!p||p.role!=='seafarer'||!p.is_active)throw Error('Seafarer access required');return user;}
 async function isPro(id){const rows=await sb(`/rest/v1/subscriptions?user_id=eq.${encodeURIComponent(id)}&plan=eq.seafarer_pro&status=eq.active&select=id&limit=1`);return !!rows?.length;}
