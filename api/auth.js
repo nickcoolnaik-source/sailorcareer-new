@@ -45,6 +45,7 @@ module.exports=async function(req,res){
     // Masterclass registration and email verification share this existing
     // endpoint so the Hobby deployment does not add more serverless functions.
     if(body.action==='masterclass_register'){
+      await verifyTurnstile(body.turnstileToken,req);
       const clean=(v,max=200)=>String(v??'').trim().slice(0,max);
       const name=clean(body.name,100),email=clean(body.email,150).toLowerCase();
       const mobile=clean(body.mobile,25),batch=clean(body.batch,80);
@@ -88,7 +89,50 @@ module.exports=async function(req,res){
         body:JSON.stringify({status:'email_verified',email_verified_at:new Date().toISOString()})
       });
       if(!Array.isArray(rows)||!rows.length)return res.status(404).json({error:'No pending masterclass registration was found for this email. Please submit the form again or contact info@sailorcareer.com.'});
-      return res.status(200).json({success:true,message:'Email verified successfully. Your registration is email-verified. Seat and payment details will be confirmed separately.'});
+      const registration=rows[0];
+      return res.status(200).json({success:true,email,registrationId:registration.id,batch:registration.batch,message:'Email verified. Review the participation fee and terms below to continue to secure payment.'});
+    }
+
+    if(body.action==='masterclass_create_payment'){
+      const auth=String(req.headers.authorization||'');
+      const token=auth.startsWith('Bearer ')?auth.slice(7):'';
+      if(!token) return res.status(401).json({error:'Please verify your email using the link sent to you first.'});
+      const ur=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anon,Authorization:`Bearer ${token}`}});
+      const verifiedUser=await ur.json().catch(()=>({}));
+      if(!ur.ok||!verifiedUser.email_confirmed_at) return res.status(401).json({error:'Email verification is required before payment.'});
+      const registrationId=String(body.registrationId||'');
+      if(!/^[0-9a-f-]{36}$/i.test(registrationId)) return res.status(400).json({error:'Invalid registration reference. Please verify your email again.'});
+      const rows=await sb(`/rest/v1/masterclass_registrations?id=eq.${encodeURIComponent(registrationId)}&email=eq.${encodeURIComponent(String(verifiedUser.email).toLowerCase())}&select=id,email,name,mobile,batch,status`,{});
+      const registration=rows?.[0];
+      if(!registration||!['email_verified','payment_pending'].includes(registration.status)) return res.status(400).json({error:'This registration is not eligible for payment. Please contact info@sailorcareer.com.'});
+      if(!body.acceptTerms) return res.status(400).json({error:'Please acknowledge the fee and non-refundable payment terms.'});
+      const appId=process.env.CASHFREE_APP_ID,secretKey=process.env.CASHFREE_SECRET_KEY;
+      if(!appId||!secretKey) return res.status(500).json({error:'Secure payment is temporarily unavailable. Please contact info@sailorcareer.com.'});
+      const mode=process.env.CASHFREE_ENV==='PRODUCTION'?'production':'sandbox';
+      const apiBase=mode==='production'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';
+      const orderId=`SCMC_${Date.now()}_${require('crypto').randomBytes(5).toString('hex')}`;
+      const phone=String(registration.mobile||'').replace(/\D/g,'').slice(-10);
+      if(phone.length!==10) return res.status(400).json({error:'Please provide a valid 10-digit mobile number with country code in your registration.'});
+      const orderResponse=await fetch(`${apiBase}/orders`,{method:'POST',headers:{'Content-Type':'application/json','x-api-version':process.env.CASHFREE_API_VERSION||'2025-01-01','x-client-id':appId,'x-client-secret':secretKey,'x-request-id':require('crypto').randomUUID(),'x-idempotency-key':require('crypto').randomUUID()},body:JSON.stringify({order_id:orderId,order_amount:299,order_currency:'INR',customer_details:{customer_id:registration.id,customer_name:registration.name,customer_email:registration.email,customer_phone:phone},order_meta:{return_url:`${(process.env.SITE_URL||'https://sailorcareer.com').replace(/\/$/,'')}/masterclass/?mc_payment=return&order_id={order_id}`},order_note:'SailorCareer 2-Day Maritime Career Masterclass participation fee'})});
+      const order=await orderResponse.json().catch(()=>({}));
+      if(!orderResponse.ok||!order.payment_session_id) throw new Error(order.message||'Cashfree could not create the payment session. Please try again.');
+      await sb(`/rest/v1/masterclass_registrations?id=eq.${encodeURIComponent(registration.id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({status:'payment_pending',payment_order_id:orderId,payment_amount:299,payment_currency:'INR',payment_created_at:new Date().toISOString()})});
+      return res.status(200).json({success:true,orderId,paymentSessionId:order.payment_session_id,mode,amount:299,currency:'INR'});
+    }
+
+    if(body.action==='masterclass_verify_payment'){
+      const orderId=String(body.orderId||'');
+      if(!/^SCMC_[A-Za-z0-9_]+$/.test(orderId)) return res.status(400).json({error:'Invalid payment reference.'});
+      const appId=process.env.CASHFREE_APP_ID,secretKey=process.env.CASHFREE_SECRET_KEY;
+      if(!appId||!secretKey) return res.status(500).json({error:'Payment verification is temporarily unavailable.'});
+      const apiBase=process.env.CASHFREE_ENV==='PRODUCTION'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';
+      const verifyResponse=await fetch(`${apiBase}/orders/${encodeURIComponent(orderId)}`,{headers:{'x-api-version':process.env.CASHFREE_API_VERSION||'2025-01-01','x-client-id':appId,'x-client-secret':secretKey}});
+      const order=await verifyResponse.json().catch(()=>({}));
+      if(!verifyResponse.ok) throw new Error(order.message||'Unable to verify payment status.');
+      if(order.order_status!=='PAID'||Number(order.order_amount)!==299||order.order_currency!=='INR') return res.status(202).json({success:false,pending:true,message:'Payment is not confirmed yet. If your account was debited, wait briefly and refresh this page.'});
+      const rows=await sb(`/rest/v1/masterclass_registrations?payment_order_id=eq.${encodeURIComponent(orderId)}&select=id,status`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:'confirmed',paid_at:new Date().toISOString(),payment_status:'paid'})});
+      if(!Array.isArray(rows)||!rows.length) return res.status(404).json({error:'Payment was received but the registration record was not found. Contact info@sailorcareer.com with order ID '+orderId+'.'});
+      return res.status(200).json({success:true,message:'Payment verified. Your masterclass registration is confirmed. Keep your order reference: '+orderId,orderId});
     }
 
     await verifyTurnstile(body.turnstileToken,req);
