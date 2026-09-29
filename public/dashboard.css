@@ -21,3 +21,18 @@
 .masterclass-access{position:relative;z-index:1;margin:0 0 18px;padding:13px 15px;border-left:3px solid #e2ad3d;border-radius:0 9px 9px 0;background:#fff8e9;color:#596a7d;font-size:13px;line-height:1.6}
 .masterclass-promo .btn{position:relative;z-index:1;display:inline-flex;align-items:center;gap:12px;text-decoration:none}
 @media(prefers-reduced-motion:reduce){.dash-nav .new-badge{animation:none}}
+
+
+/* High-visibility Seafarer Pro masterclass benefit */
+.masterclass-pro-callout{position:relative;z-index:1;margin:22px 0 16px;padding:20px 22px;border:1px solid #e8b744;border-left:5px solid #e3a91f;border-radius:14px;background:linear-gradient(110deg,#fff6dc 0%,#fffdf6 62%,#fff8e8 100%);box-shadow:0 8px 24px #b9821a18}
+.masterclass-pro-heading{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.masterclass-pro-flash{display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;background:#102b49;color:#fff;font-size:10px;font-weight:900;letter-spacing:.1em;animation:proBenefitFlash 1.45s ease-in-out infinite}
+.masterclass-pro-free{display:inline-flex;align-items:center;border:1px solid #e6b13a;border-radius:999px;padding:5px 9px;background:#ffedb8;color:#6c4700;font-size:10px;font-weight:900;letter-spacing:.08em}
+.masterclass-pro-callout h4{margin:0 0 8px;color:#102b49;font:800 clamp(18px,2.4vw,23px)/1.3 Manrope,sans-serif}
+.masterclass-pro-callout p{margin:0 0 15px;color:#52667d;font-size:14px;line-height:1.65;max-width:760px}
+.masterclass-pro-callout .masterclass-upgrade{display:inline-flex;align-items:center;gap:10px;border:0;cursor:pointer;font:800 14px inherit}
+.masterclass-pro-callout small{display:block;margin-top:12px;color:#69788a;font-size:11px;line-height:1.5}
+.masterclass-register{position:relative;z-index:1;display:inline-flex;align-items:center;gap:10px;margin-top:2px;text-decoration:none;border:1px solid #d8e3ed;background:#fff;color:#18334f;padding:11px 16px;border-radius:10px;font-weight:700}
+@keyframes proBenefitFlash{0%,100%{opacity:1;box-shadow:0 0 0 0 #e8b74400}50%{opacity:.72;box-shadow:0 0 0 5px #e8b74435}}
+@media(prefers-reduced-motion:reduce){.masterclass-pro-flash{animation:none}}
+@media(max-width:600px){.masterclass-pro-callout{padding:17px}.masterclass-pro-callout .masterclass-upgrade,.masterclass-register{width:100%;justify-content:center;box-sizing:border-box}}
