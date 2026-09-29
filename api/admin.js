@@ -17,9 +17,9 @@ const table=(name,select='*',query='')=>sb(`/rest/v1/${name}?select=${encodeURIC
 const patch=(name,query,body)=>sb(`/rest/v1/${name}?${query}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(body)});
 
 async function overview(){
-  const [profiles,companies,jobs,apps,subs,payments]=await Promise.all([
+  const [profiles,companies,jobs,apps,subs,payments,masterclass]=await Promise.all([
     table('profiles','id,role,is_active'), table('companies','id,verified,rpsl_status'), table('jobs','id,status,approved'),
-    table('applications','id,status'), table('subscriptions','id,plan,status,amount,created_at'), table('payment_events','id,event_type,order_id,provider,created_at')
+    table('applications','id,status'), table('subscriptions','id,plan,status,amount,created_at'), table('payment_events','id,event_type,order_id,provider,created_at'), table('masterclass_registrations','id,status,payment_status')
   ]);
   return {
     seafarers:profiles.filter(x=>x.role==='seafarer').length,
@@ -27,7 +27,7 @@ async function overview(){
     pendingEmployers:companies.filter(x=>!x.verified).length,
     jobs:jobs.length,pendingJobs:jobs.filter(x=>!x.approved).length,
     applications:apps.length,activeSubscriptions:subs.filter(x=>x.status==='active').length,
-    payments:payments.length
+    payments:payments.length,masterclassRegistrations:masterclass.length
   };
 }
 
@@ -228,6 +228,7 @@ module.exports=async function(req,res){
     }
 
     if(action==='payments') return res.json({success:true,payments:await table('payment_events','*','&order=created_at.desc')});
+    if(action==='masterclass') return res.json({success:true,registrations:await table('masterclass_registrations','*','&order=created_at.desc')});
 
     if(action==='masters'){
       const [r,v,s]=await Promise.all([table('ranks','*','&order=sort_order.asc,name.asc'),table('vessel_types','*','&order=sort_order.asc,name.asc'),table('sectors','*','&order=sort_order.asc,name.asc')]);
