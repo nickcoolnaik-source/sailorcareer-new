@@ -44,7 +44,7 @@ function showMessage(message,isError=false){alertBox.style.display='block';alert
  if(!accessToken)return;
  showMessage('Verifying your email and confirming your registration…');
  try{
-  const r=await fetch('/api/masterclass-confirm',{method:'POST',headers:{Authorization:'Bearer '+accessToken}});
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+accessToken},body:JSON.stringify({action:'masterclass_verify'})});
   const data=await r.json();
   if(!r.ok)throw new Error(data.error||'Email verification could not be completed.');
   showMessage(data.message||'Email verified. Your masterclass registration is confirmed.');
@@ -59,7 +59,7 @@ form.addEventListener('submit',async function(e){
  button.disabled=true;button.textContent='Submitting registration…';
  showMessage('Submitting your details and requesting an email verification link…');
  try{
-  const r=await fetch('/api/masterclass-register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,action:'masterclass_register'})});
   const data=await r.json();if(!r.ok)throw new Error(data.error||'Registration could not be submitted.');
   showMessage(data.message||'Registration saved. Please check your email for the verification link.');
   form.reset();
