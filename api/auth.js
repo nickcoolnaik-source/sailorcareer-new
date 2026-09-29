@@ -41,6 +41,56 @@ module.exports=async function(req,res){
   try{
     const {url,anon,secret}=env();
     const body=req.body||{};
+
+    // Masterclass registration and email verification share this existing
+    // endpoint so the Hobby deployment does not add more serverless functions.
+    if(body.action==='masterclass_register'){
+      const clean=(v,max=200)=>String(v??'').trim().slice(0,max);
+      const name=clean(body.name,100),email=clean(body.email,150).toLowerCase();
+      const mobile=clean(body.mobile,25),batch=clean(body.batch,80);
+      const rank=clean(body.rank,100),department=clean(body.department,80);
+      const qualification=clean(body.qualification,150),experience=clean(body.experience,150);
+      const questions=clean(body.questions,1000);
+      if(!name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||!mobile||!batch||!rank||!department||!(body.consent===true||body.consent==='true')){
+        return res.status(400).json({error:'Please complete all required fields and accept the consent.'});
+      }
+      if(!['Batch A — 17–18 October 2026','Batch B — 24–25 October 2026'].includes(batch)){
+        return res.status(400).json({error:'Please select a valid batch.'});
+      }
+      const allowed=['Deck','Engine','Electrical / ETO','Catering / Galley','Other maritime department','Aspiring seafarer / Not yet assigned'];
+      if(!allowed.includes(department))return res.status(400).json({error:'Please select a valid department.'});
+      await sb('/rest/v1/masterclass_registrations?on_conflict=email,batch',{
+        method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+        body:JSON.stringify({name,email,mobile,batch,rank,department,qualification,experience,questions,status:'pending_email',consent_at:new Date().toISOString()})
+      });
+      const site=(process.env.SITE_URL||'https://sailorcareer.com').replace(/\/$/,'');
+      const redirectTo=`${site}/masterclass/`;
+      const r=await fetch(`${url}/auth/v1/otp?redirect_to=${encodeURIComponent(redirectTo)}`,{
+        method:'POST',headers:{'Content-Type':'application/json',apikey:anon},
+        body:JSON.stringify({email,create_user:true})
+      });
+      const result=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(result.msg||result.message||result.error_description||'Unable to send verification email. Please try again later.');
+      return res.status(200).json({success:true,message:'Registration details saved. A verification link was sent to '+email+'. Check your inbox and spam folder, then open the link to verify your email.'});
+    }
+
+    if(body.action==='masterclass_verify'){
+      const auth=String(req.headers.authorization||'');
+      const token=auth.startsWith('Bearer ')?auth.slice(7):'';
+      if(!token)return res.status(401).json({error:'Verification token is missing. Please open the latest email link.'});
+      const r=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anon,Authorization:`Bearer ${token}`}});
+      const user=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error('Unable to verify email. Please open the latest confirmation link.');
+      const email=String(user.email||'').toLowerCase();
+      if(!email||(!user.email_confirmed_at&&!user.confirmed_at))return res.status(401).json({error:'Email is not verified yet. Please open the confirmation link from your email.'});
+      const rows=await sb(`/rest/v1/masterclass_registrations?email=eq.${encodeURIComponent(email)}&status=eq.pending_email`,{
+        method:'PATCH',headers:{Prefer:'return=representation'},
+        body:JSON.stringify({status:'email_verified',email_verified_at:new Date().toISOString()})
+      });
+      if(!Array.isArray(rows)||!rows.length)return res.status(404).json({error:'No pending masterclass registration was found for this email. Please submit the form again or contact info@sailorcareer.com.'});
+      return res.status(200).json({success:true,message:'Email verified successfully. Your registration is email-verified. Seat and payment details will be confirmed separately.'});
+    }
+
     await verifyTurnstile(body.turnstileToken,req);
 
     if(body.action==='signup'){
