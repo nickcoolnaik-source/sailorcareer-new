@@ -1,5 +1,26 @@
 const {sb}=require('./_supabase');
 
+function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function sendMasterclassConfirmation(reg,{paid=false,orderId=''}={}){
+  if(!process.env.RESEND_API_KEY) return {sent:false,reason:'RESEND_API_KEY is not configured'};
+  const from=process.env.RESEND_FROM_EMAIL||'SailorCareer <info@sailorcareer.com>';
+  const name=escapeHtml(reg.name||'Participant');
+  const batch=escapeHtml(reg.batch||'Selected batch');
+  const paymentLine=paid
+    ? `<p><strong>Payment status:</strong> Successfully received${orderId?` (Order reference: ${escapeHtml(orderId)})`:''}.</p>`
+    : `<p><strong>Registration status:</strong> Confirmed under your active SailorCareer Pro membership. No payment is due.</p>`;
+  const payload={
+    from,to:[reg.email],
+    subject:'Registration Confirmed – SailorCareer Maritime Masterclass',
+    html:`<!doctype html><html><body style="margin:0;background:#f3f6fa;font-family:Arial,sans-serif;color:#183047"><div style="max-width:620px;margin:24px auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden"><div style="background:#06182e;color:#fff;padding:24px 30px"><div style="font-size:13px;letter-spacing:2px;color:#f3bd59;font-weight:bold">SAILORCAREER</div><h1 style="font-size:24px;margin:12px 0 0">Registration confirmed</h1></div><div style="padding:28px 30px;line-height:1.65"><p>Dear ${name},</p><p>Thank you for registering for the <strong>SailorCareer 2-Day Maritime Career &amp; Professional Development Masterclass</strong>. Your registration is confirmed.</p><p><strong>Selected batch:</strong> ${batch}</p>${paymentLine}<div style="background:#eef7fb;border-left:4px solid #078c9b;padding:16px;margin:22px 0"><strong>Online session access</strong><p style="margin:8px 0 0">Your Microsoft Teams meeting link and access credentials (Meeting ID and Passcode) will be sent to your registered email address before the Masterclass begins. Please check your inbox and spam/junk folder.</p></div><p>Please retain this email for your records. We look forward to welcoming you.</p><p>Regards,<br><strong>SailorCareer Team</strong><br><a href="mailto:info@sailorcareer.com">info@sailorcareer.com</a><br><a href="https://www.sailorcareer.com">www.sailorcareer.com</a></p><hr style="border:0;border-top:1px solid #e5eaf0;margin:24px 0"><p style="font-size:12px;color:#66788a">This is a professional learning programme. It does not guarantee employment, cadet sponsorship, vessel joining, promotion or statutory maritime certification.</p></div></div></body></html>`,
+    text:`Dear ${reg.name||'Participant'},\n\nYour registration for the SailorCareer 2-Day Maritime Career & Professional Development Masterclass is confirmed.\nSelected batch: ${reg.batch||'Selected batch'}\n${paid?'Payment status: Successfully received.'+(orderId?' Order reference: '+orderId:''):'Registration status: Confirmed under your active SailorCareer Pro membership. No payment is due.'}\n\nYour Microsoft Teams meeting link, Meeting ID and Passcode will be sent to your registered email address before the Masterclass begins. Please check your inbox and spam/junk folder.\n\nRegards,\nSailorCareer Team\ninfo@sailorcareer.com`
+  };
+  const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(data.message||`Resend email failed (${response.status})`);
+  return {sent:true,id:data.id||null};
+}
+
 async function verifyTurnstile(token, req){
   if(!token) throw new Error('Please complete the security verification.');
   if(!process.env.TURNSTILE_SECRET_KEY) throw new Error('Turnstile is not configured on the server.');
@@ -42,6 +63,57 @@ module.exports=async function(req,res){
     const {url,anon,secret}=env();
     const body=req.body||{};
 
+    if(body.action==='masterclass_register_member'){
+      const bearer=String(req.headers.authorization||''); const token=bearer.startsWith('Bearer ')?bearer.slice(7):'';
+      if(!token)return res.status(401).json({error:'Please log in to your SailorCareer account first.'});
+      const ur=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anon,Authorization:`Bearer ${token}`}});
+      const user=await ur.json().catch(()=>({})); if(!ur.ok||!user.id||!user.email_confirmed_at)return res.status(401).json({error:'Your account session is invalid. Please log in again.'});
+      const uid=encodeURIComponent(user.id); const profile=(await sb(`/rest/v1/profiles?id=eq.${uid}&select=id,email,full_name,mobile,role,is_active`))[0];
+      if(!profile||profile.role!=='seafarer'||!profile.is_active)return res.status(403).json({error:'An active Seafarer account is required.'});
+      const clean=(v,max=200)=>String(v??'').trim().slice(0,max);
+      const batch=clean(body.batch,80),rank=clean(body.rank,100),department=clean(body.department,80);
+      const qualification=clean(body.qualification,150),experience=clean(body.experience,150),questions=clean(body.questions,1000);
+      if(!['Batch A — 17–18 October 2026','Batch B — 24–25 October 2026'].includes(batch)||!rank||!department||!(body.consent===true||body.consent==='true'))return res.status(400).json({error:'Complete required fields, select a valid batch and accept the consent.'});
+      const allowed=['Deck','Engine','Electrical / ETO','Catering / Galley','Other maritime department','Aspiring seafarer / Not yet assigned'];
+      if(!allowed.includes(department))return res.status(400).json({error:'Select a valid department.'});
+      const subs=await sb(`/rest/v1/subscriptions?user_id=eq.${uid}&plan=eq.seafarer_pro&status=eq.active&select=id,status,renews_at,created_at&order=created_at.desc&limit=5`);
+      const now=Date.now(); const isPro=(subs||[]).some(x=>!x.renews_at||new Date(x.renews_at).getTime()>now);
+      const fee=isPro?0:299;
+      const existing=(await sb(`/rest/v1/masterclass_registrations?user_id=eq.${uid}&batch=eq.${encodeURIComponent(batch)}&select=id,status,payment_status,fee_amount,membership_plan,payment_order_id,confirmation_email_sent_at&limit=1`))[0];
+      const alreadySettled=existing&&(['confirmed','completed'].includes(existing.status)||['paid','free'].includes(existing.payment_status));
+      const registration={user_id:user.id,name:profile.full_name||user.user_metadata?.full_name||user.email,email:String(user.email).toLowerCase(),mobile:profile.mobile||'',batch,rank,department,qualification,experience,questions,status:alreadySettled?existing.status:(isPro?'confirmed':'awaiting_payment'),payment_status:alreadySettled?existing.payment_status:(isPro?'free':'unpaid'),membership_plan:alreadySettled?existing.membership_plan:(isPro?'seafarer_pro':'free'),fee_amount:alreadySettled?Number(existing.fee_amount||0):fee,currency:'INR',consent_at:new Date().toISOString(),email_verified_at:user.email_confirmed_at};
+      const saved=await sb('/rest/v1/masterclass_registrations?on_conflict=user_id,batch&select=id,status,payment_status,fee_amount,membership_plan,batch,confirmation_email_sent_at',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(registration)});
+      const row=saved?.[0]; if(!row)return res.status(500).json({error:'Registration could not be saved.'});
+      let confirmationEmailSent=false;
+      if(Number(row.fee_amount)===0&&!row.confirmation_email_sent_at){
+        try{
+          const sent=await sendMasterclassConfirmation({name:registration.name,email:registration.email,batch:registration.batch},{paid:false});
+          confirmationEmailSent=sent.sent;
+          if(sent.sent) await sb(`/rest/v1/masterclass_registrations?id=eq.${encodeURIComponent(row.id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({confirmation_email_sent_at:new Date().toISOString()})});
+        }catch(emailError){console.error('Masterclass Pro confirmation email failed:',emailError.message);}
+      }
+      return res.status(200).json({success:true,registrationId:row.id,isPro,fee:row.fee_amount,free:row.fee_amount===0,status:row.status,confirmationEmailSent,message:row.fee_amount===0?'Your free Pro-member registration is confirmed.':'Registration saved. Review the ₹299 fee and terms before payment.'});
+    }
+    if(body.action==='masterclass_create_member_payment'){
+      const bearer=String(req.headers.authorization||''); const token=bearer.startsWith('Bearer ')?bearer.slice(7):'';
+      if(!token)return res.status(401).json({error:'Please log in to continue.'});
+      const ur=await fetch(`${url}/auth/v1/user`,{headers:{apikey:anon,Authorization:`Bearer ${token}`}}); const user=await ur.json().catch(()=>({}));
+      if(!ur.ok||!user.id||!user.email_confirmed_at)return res.status(401).json({error:'Please log in with your verified SailorCareer account.'});
+      const id=String(body.registrationId||''); if(!/^[0-9a-f-]{36}$/i.test(id))return res.status(400).json({error:'Invalid registration reference.'});
+      const rows=await sb(`/rest/v1/masterclass_registrations?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(user.id)}&select=id,user_id,name,email,mobile,batch,status,fee_amount,payment_status`);
+      const reg=rows?.[0]; if(!reg)return res.status(404).json({error:'Registration not found for this account.'});
+      if(Number(reg.fee_amount)===0)return res.status(200).json({success:true,free:true,message:'Your Pro-member registration is already confirmed.'});
+      if(!body.acceptTerms)return res.status(400).json({error:'Please accept the displayed fee and refund terms.'});
+      if(!['awaiting_payment','payment_pending'].includes(reg.status))return res.status(400).json({error:'This registration is not eligible for payment.'});
+      const appId=process.env.CASHFREE_APP_ID,secretKey=process.env.CASHFREE_SECRET_KEY;if(!appId||!secretKey)return res.status(500).json({error:'Cashfree payment is not configured.'});
+      const mode=process.env.CASHFREE_ENV==='PRODUCTION'?'production':'sandbox'; const base=mode==='production'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';
+      const orderId=`SCMC_${Date.now()}_${require('crypto').randomBytes(5).toString('hex')}`; const phone=String(reg.mobile||'').replace(/\D/g,'').slice(-10);
+      if(phone.length!==10)return res.status(400).json({error:'Add a valid 10-digit mobile number to your SailorCareer profile before paying.'});
+      const response=await fetch(`${base}/orders`,{method:'POST',headers:{'Content-Type':'application/json','x-api-version':process.env.CASHFREE_API_VERSION||'2025-01-01','x-client-id':appId,'x-client-secret':secretKey,'x-request-id':require('crypto').randomUUID(),'x-idempotency-key':require('crypto').randomUUID()},body:JSON.stringify({order_id:orderId,order_amount:299,order_currency:'INR',customer_details:{customer_id:reg.user_id,customer_name:reg.name,customer_email:reg.email,customer_phone:phone},order_meta:{return_url:`${(process.env.SITE_URL||'https://sailorcareer.com').replace(/\/$/,'')}/masterclass/?mc_payment=return&order_id={order_id}`},order_note:'SailorCareer Maritime Career Masterclass'})});
+      const order=await response.json().catch(()=>({}));if(!response.ok||!order.payment_session_id)throw new Error(order.message||'Cashfree could not create checkout.');
+      await sb(`/rest/v1/masterclass_registrations?id=eq.${encodeURIComponent(reg.id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({status:'payment_pending',payment_status:'pending',payment_order_id:orderId,payment_amount:299,payment_currency:'INR',payment_created_at:new Date().toISOString()})});
+      return res.status(200).json({success:true,orderId,paymentSessionId:order.payment_session_id,mode,amount:299,currency:'INR'});
+    }
     // Masterclass registration and email verification share this existing
     // endpoint so the Hobby deployment does not add more serverless functions.
     if(body.action==='masterclass_register'){
@@ -130,9 +202,17 @@ module.exports=async function(req,res){
       const order=await verifyResponse.json().catch(()=>({}));
       if(!verifyResponse.ok) throw new Error(order.message||'Unable to verify payment status.');
       if(order.order_status!=='PAID'||Number(order.order_amount)!==299||order.order_currency!=='INR') return res.status(202).json({success:false,pending:true,message:'Payment is not confirmed yet. If your account was debited, wait briefly and refresh this page.'});
-      const rows=await sb(`/rest/v1/masterclass_registrations?payment_order_id=eq.${encodeURIComponent(orderId)}&select=id,status`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:'confirmed',paid_at:new Date().toISOString(),payment_status:'paid'})});
+      const rows=await sb(`/rest/v1/masterclass_registrations?payment_order_id=eq.${encodeURIComponent(orderId)}&select=id,name,email,batch,confirmation_email_sent_at`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:'confirmed',paid_at:new Date().toISOString(),payment_status:'paid'})});
       if(!Array.isArray(rows)||!rows.length) return res.status(404).json({error:'Payment was received but the registration record was not found. Contact info@sailorcareer.com with order ID '+orderId+'.'});
-      return res.status(200).json({success:true,message:'Payment verified. Your masterclass registration is confirmed. Keep your order reference: '+orderId,orderId});
+      const registration=rows[0]; let confirmationEmailSent=Boolean(registration.confirmation_email_sent_at);
+      if(!confirmationEmailSent){
+        try{
+          const sent=await sendMasterclassConfirmation(registration,{paid:true,orderId});
+          confirmationEmailSent=sent.sent;
+          if(sent.sent) await sb(`/rest/v1/masterclass_registrations?id=eq.${encodeURIComponent(registration.id)}`,{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({confirmation_email_sent_at:new Date().toISOString()})});
+        }catch(emailError){console.error('Masterclass payment confirmation email failed:',emailError.message);}
+      }
+      return res.status(200).json({success:true,confirmationEmailSent,message:'Payment verified and your masterclass registration is confirmed. '+(confirmationEmailSent?'A confirmation email has been sent to your registered email address.':'Your confirmation is saved; email delivery could not be confirmed. Please contact info@sailorcareer.com if you do not receive it.'),orderId});
     }
 
     await verifyTurnstile(body.turnstileToken,req);
