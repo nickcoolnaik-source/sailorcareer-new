@@ -79,10 +79,13 @@ module.exports=async function(req,res){
       const subs=await sb(`/rest/v1/subscriptions?user_id=eq.${uid}&plan=eq.seafarer_pro&status=eq.active&select=id,status,renews_at,created_at&order=created_at.desc&limit=5`);
       const now=Date.now(); const isPro=(subs||[]).some(x=>!x.renews_at||new Date(x.renews_at).getTime()>now);
       const fee=isPro?0:299;
-      const existing=(await sb(`/rest/v1/masterclass_registrations?user_id=eq.${uid}&batch=eq.${encodeURIComponent(batch)}&select=id,status,payment_status,fee_amount,membership_plan,payment_order_id,confirmation_email_sent_at&limit=1`))[0];
+      const email=String(user.email).trim().toLowerCase();
+      // The database's unique key is email + batch (not user_id + batch).
+      // Reuse an earlier public/email registration when the participant later logs in.
+      const existing=(await sb(`/rest/v1/masterclass_registrations?email=eq.${encodeURIComponent(email)}&batch=eq.${encodeURIComponent(batch)}&select=id,user_id,status,payment_status,fee_amount,membership_plan,payment_order_id,confirmation_email_sent_at&limit=1`))[0];
       const alreadySettled=existing&&(['confirmed','completed'].includes(existing.status)||['paid','free'].includes(existing.payment_status));
-      const registration={user_id:user.id,name:profile.full_name||user.user_metadata?.full_name||user.email,email:String(user.email).toLowerCase(),mobile:profile.mobile||'',batch,rank,department,qualification,experience,questions,status:alreadySettled?existing.status:(isPro?'confirmed':'payment_pending'),payment_status:alreadySettled?existing.payment_status:(isPro?'free':'unpaid'),membership_plan:alreadySettled?existing.membership_plan:(isPro?'seafarer_pro':'free'),fee_amount:alreadySettled?Number(existing.fee_amount||0):fee,currency:'INR',consent_at:new Date().toISOString(),email_verified_at:user.email_confirmed_at};
-      const saved=await sb('/rest/v1/masterclass_registrations?on_conflict=user_id,batch&select=id,status,payment_status,fee_amount,membership_plan,batch,confirmation_email_sent_at',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(registration)});
+      const registration={user_id:user.id,name:profile.full_name||user.user_metadata?.full_name||user.email,email,mobile:profile.mobile||'',batch,rank,department,qualification,experience,questions,status:alreadySettled?existing.status:(isPro?'confirmed':'payment_pending'),payment_status:alreadySettled?existing.payment_status:(isPro?'free':'unpaid'),membership_plan:alreadySettled?existing.membership_plan:(isPro?'seafarer_pro':'free'),fee_amount:alreadySettled?Number(existing.fee_amount||0):fee,currency:'INR',consent_at:new Date().toISOString(),email_verified_at:user.email_confirmed_at};
+      const saved=await sb('/rest/v1/masterclass_registrations?on_conflict=email,batch&select=id,status,payment_status,fee_amount,membership_plan,batch,confirmation_email_sent_at',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(registration)});
       const row=saved?.[0]; if(!row)return res.status(500).json({error:'Registration could not be saved.'});
       let confirmationEmailSent=false;
       if(Number(row.fee_amount)===0&&!row.confirmation_email_sent_at){
